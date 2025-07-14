@@ -7,6 +7,8 @@ import os
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from llama_index.vector_stores.mongodb import MongoDBAtlasVectorSearch
+from llama_index.vector_stores.qdrant import QdrantVectorStore
+from qdrant_client import QdrantClient
 from llama_index.core import VectorStoreIndex
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.llms.azure_openai import AzureOpenAI
@@ -48,20 +50,30 @@ mongo_connection_string = mongo_connection_string.format(mongousername = os.gete
 mongo_connection_string = mongo_connection_string.format(mongopass = os.getenv("MONGO_PASSWORD"))
 mongo_connection_string = mongo_connection_string.format(mongoserver = os.getenv("MONGO_SERVER"))
 
-# Create a new client and connect to the server
-client = MongoClient(mongo_connection_string, server_api=ServerApi('1'))
+database_engine = os.getenv("DATABASE_ENGINE")
+
+if database_engine == "mongodb":
+    # Create a new client and connect to the server
+    client = MongoClient(mongo_connection_string, server_api=ServerApi('1'))
 
 
 
-# connect to Atlas as a vector store
-store = MongoDBAtlasVectorSearch(
-    client,
-    db_name=os.getenv("MONGODB_NAME"), # this is the database where you stored your embeddings
-    collection_name=os.getenv("MONGODB_COLLECTION"), # this is where your embeddings were stored in 2_load_and_index.py
-    vector_index_name=os.getenv("MONGODB_VECTOR_INDEX") # this is the name of the index you created after loading your data
-)
+    # connect to Atlas as a vector store
+    store = MongoDBAtlasVectorSearch(
+        client,
+        db_name=os.getenv("MONGODB_NAME"), # this is the database where you stored your embeddings
+        collection_name=os.getenv("MONGODB_COLLECTION"), # this is where your embeddings were stored in 2_load_and_index.py
+        vector_index_name=os.getenv("MONGODB_VECTOR_INDEX") # this is the name of the index you created after loading your data
+    )
 
-index = VectorStoreIndex.from_vector_store(store)
+    index = VectorStoreIndex.from_vector_store(store)
+elif database_engine == "qdrant":
+    client = QdrantClient(
+        url=os.getenv("QDRANT_URL"),
+        api_key=os.getenv("QDRANT_API_KEY"),
+    )
+    vector_store = QdrantVectorStore(client=client, collection_name=os.getenv("QDRANT_COLLECTION_NAME"))
+    index = VectorStoreIndex.from_vector_store(vector_store)
 
 # You are a sales agent capable of generating legal IT Software contract and statement of work based on Scotiabank Contract P65432.
 

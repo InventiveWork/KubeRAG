@@ -99,3 +99,5 @@ google
 ipython
 google-api-python-client
 google-auth-oauthlib
+qdrant-client
+llama-index-vector-stores-qdrant
