@@ -15,6 +15,9 @@ def get_agent():
     elif llm_framework == "gemini":
         from .frameworks.gemini_agent import GeminiAgent
         return GeminiAgent()
+    elif llm_framework == "semantic-kernel":
+        from .frameworks.semantic_kernel_agent import SemanticKernelAgent
+        return SemanticKernelAgent()
     else:
         raise ValueError(f"Unknown LLM framework: {llm_framework}")
 
