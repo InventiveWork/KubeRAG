@@ -12,11 +12,13 @@ class SemanticKernelAgent(Agent):
     def __init__(self):
         self.kernel = sk.Kernel()
         llm_provider = os.getenv('LLM_PROVIDER')
+        ai_model_id = os.getenv('AI_MODEL_ID')
+        service_id = os.getenv('SERVICE_ID')
 
         if llm_provider == "azure_openai":
             self.kernel.add_service(
                 AzureChatCompletion(
-                    service_id="azure_openai",
+                    service_id=service_id,
                     deployment_name=os.getenv("AZURE_LLM_MODEL_DEPLOYMENT"),
                     endpoint=os.getenv("AZURE_ENDPOINT"),
                     api_key=os.getenv("AZURE_API_KEY"),
@@ -25,24 +27,24 @@ class SemanticKernelAgent(Agent):
         elif llm_provider == "openai":
             self.kernel.add_service(
                 OpenAIChatCompletion(
-                    service_id="openai",
-                    ai_model_id="gpt-3.5-turbo",
+                    service_id=service_id,
+                    ai_model_id=ai_model_id,
                     api_key=os.getenv("OPENAI_API_KEY"),
                 ),
             )
         elif llm_provider == "gemini":
             self.kernel.add_service(
                 GoogleGeminiChatCompletion(
-                    service_id="gemini",
-                    ai_model_id="gemini-1.5-flash",
+                    service_id=service_id,
+                    ai_model_id=ai_model_id,
                     api_key=os.getenv("GEMINI_API_KEY"),
                 ),
             )
         elif llm_provider == "groq":
             self.kernel.add_service(
                 GroqChatCompletion(
-                    service_id="groq",
-                    ai_model_id="llama3-8b-8192",
+                    service_id=service_id,
+                    ai_model_id=ai_model_id,
                     api_key=os.getenv("GROQ_API_KEY"),
                 ),
             )

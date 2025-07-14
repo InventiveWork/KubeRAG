@@ -11,6 +11,7 @@ load_dotenv()
 class LlamaIndexAgent(Agent):
     def __init__(self):
         llm_provider = os.getenv('LLM_PROVIDER')
+        ai_model_id = os.getenv('AI_MODEL_ID')
         if llm_provider == "azure_openai":
             self.llm = AzureOpenAI(
                 model=os.getenv("AZURE_LLM_MODEL"),
@@ -20,11 +21,11 @@ class LlamaIndexAgent(Agent):
                 api_version=os.getenv("AZURE_API_VERSION"),
             )
         elif llm_provider == "openai":
-            self.llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            self.llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), model=ai_model_id)
         elif llm_provider == "groq":
-            self.llm = Groq(api_key=os.getenv("GROQ_API_KEY"))
+            self.llm = Groq(api_key=os.getenv("GROQ_API_KEY"), model=ai_model_id)
         elif llm_provider == "gemini":
-            self.llm = Gemini(api_key=os.getenv("GEMINI_API_KEY"))
+            self.llm = Gemini(api_key=os.getenv("GEMINI_API_KEY"), model=ai_model_id)
         else:
             raise ValueError(f"Unknown LLM provider: {llm_provider}")
 

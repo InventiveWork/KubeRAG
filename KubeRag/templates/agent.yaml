@@ -33,7 +33,7 @@ spec:
         {{- if eq .name $.Values.LLM_PROVIDER }}
         {{- range .env }}
         - name: {{ .name }}
-          value: {{ .value }}
+          value: {{ .value | quote }}
         {{- end }}
         {{- end }}
         {{- end }}

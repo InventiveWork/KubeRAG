@@ -10,10 +10,11 @@ load_dotenv()
 class GeminiAgent(Agent):
     def __init__(self):
         llm_provider = os.getenv('LLM_PROVIDER')
+        ai_model_id = os.getenv('AI_MODEL_ID')
         if llm_provider == "gemini":
             api_key = os.getenv('GEMINI_API_KEY')
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel(ai_model_id)
         elif llm_provider == "azure_openai":
             self.model = AzureOpenAI(
                 api_key=os.getenv("AZURE_API_KEY"),
@@ -29,12 +30,13 @@ class GeminiAgent(Agent):
 
     def chat(self, query):
         llm_provider = os.getenv('LLM_PROVIDER')
+        ai_model_id = os.getenv('AI_MODEL_ID')
         if llm_provider == "gemini":
             response = self.model.generate_content(query)
             return response.text
         else:
             response = self.model.chat.completions.create(
-                model=os.getenv("AZURE_LLM_MODEL_DEPLOYMENT"),
+                model=ai_model_id,
                 messages=[
                     {
                         "role": "user",

@@ -21,18 +21,34 @@ llmProviders:
         value: ""
       - name: AZURE_LLM_MODEL_DEPLOYMENT
         value: ""
+      - name: AI_MODEL_ID
+        value: ""
+      - name: SERVICE_ID
+        value: "azure_openai"
   - name: openai
     env:
       - name: OPENAI_API_KEY
         value: ""
+      - name: AI_MODEL_ID
+        value: "gpt-3.5-turbo"
+      - name: SERVICE_ID
+        value: "openai"
   - name: gemini
     env:
       - name: GEMINI_API_KEY
         value: ""
+      - name: AI_MODEL_ID
+        value: "gemini-1.5-flash"
+      - name: SERVICE_ID
+        value: "gemini"
   - name: groq
     env:
       - name: GROQ_API_KEY
         value: ""
+      - name: AI_MODEL_ID
+        value: "llama3-8b-8192"
+      - name: SERVICE_ID
+        value: "groq"
 
 LLM_PROVIDER: azure_openai
 DATABASE_ENGINE: 
