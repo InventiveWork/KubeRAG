@@ -34,7 +34,8 @@ def upload():
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
         # Load and index after upload
-        load.load_index()
+        engineType = os.getenv('VECTOR_STORE', 'mongodb')
+        load.load_index(engineType)
         return True
     
 @app.route('/api/testMongo', methods=['GET'])
