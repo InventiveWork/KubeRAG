@@ -1,0 +1,55 @@
+{{- define "kuberag.agent" -}}
+{{- range .Values.frameworks }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuberag-agent-{{ .name }}
+  namespace: {{ $.Release.Name }}
+spec:
+  replicas: {{ .replicaCount }}
+  selector:
+    matchLabels:
+      app: kuberag-agent-{{ .name }}
+  template:
+    metadata:
+      labels:
+        app: kuberag-agent-{{ .name }}
+    spec:
+      volumes:
+        - name: secret-volume
+          secret:
+            secretName: {{ $.Release.Name }}-secret
+            defaultMode: 384
+      containers:
+      - name: kuberag
+        image: {{ $.Values.AGENT_IMAGE }}
+        env:
+        - name: LLM_FRAMEWORK
+          value: {{ .name }}
+        volumeMounts:
+          - name: secret-volume
+            mountPath: "/etc/secret-volume"
+        envFrom:
+        - configMapRef:
+            name: {{ $.Release.Name }}-cm
+        - secretRef:
+            name: {{ $.Release.Name }}-secret
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuberag-agent-{{ .name }}
+  namespace: {{ $.Release.Name }}
+spec:
+  selector:
+    app: kuberag-agent-{{ .name }}
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+{{- end }}
+{{- end -}}
+{{- include "kuberag.agent" . -}}
