@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tls-{{ .Release.Name }}-ingress
+  namespace: {{ .Release.Name }}
+spec:
+  ingressClassName: {{ .Values.INGRESS_CLASS_NAME }}
+  tls:
+  - hosts:
+      - {{ .Values.INGRESS_HOST }}
+    secretName: {{ .Release.Name }}-tls-secret
+  rules:
+  - host: {{ .Values.INGRESS_HOST }}
+    http:
+      paths:
+      - path:
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-agent-service
+            port:
+              number: 80

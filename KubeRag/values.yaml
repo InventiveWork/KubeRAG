@@ -1,11 +1,11 @@
 frameworks:
-  langchain:
+  - name: langchain
     replicaCount: 1
-  llamaindex:
+  - name: llamaindex
     replicaCount: 1
-  gemini:
+  - name: gemini
     replicaCount: 1
-  "semantic-kernel":
+  - name: "semantic-kernel"
     replicaCount: 1
 
 LLM_FRAMEWORK: 
