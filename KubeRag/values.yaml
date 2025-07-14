@@ -1,3 +1,13 @@
+frameworks:
+  langchain:
+    replicaCount: 1
+  llamaindex:
+    replicaCount: 1
+  gemini:
+    replicaCount: 1
+  "semantic-kernel":
+    replicaCount: 1
+
 LLM_FRAMEWORK: 
 DATABASE_ENGINE: 
 AZURE_ENDPOINT: ""

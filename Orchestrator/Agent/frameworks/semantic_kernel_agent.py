@@ -9,18 +9,15 @@ load_dotenv()
 class SemanticKernelAgent(Agent):
     def __init__(self):
         self.kernel = sk.Kernel()
-        service_id = "default"
         self.kernel.add_service(
             AzureChatCompletion(
-                service_id=service_id,
+                service_id="default",
+                deployment_name=os.getenv("AZURE_LLM_MODEL_DEPLOYMENT"),
+                endpoint=os.getenv("AZURE_ENDPOINT"),
+                api_key=os.getenv("AZURE_API_KEY"),
             ),
         )
 
     async def chat(self, query):
-        chat_function = self.kernel.add_function(
-            function_name="chat",
-            plugin_name="chatPlugin",
-            prompt="{{$input}}",
-        )
-        result = await self.kernel.invoke(chat_function, sk.KernelArguments(input=query))
+        result = await self.kernel.invoke_prompt(query)
         return str(result)

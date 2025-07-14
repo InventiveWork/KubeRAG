@@ -1,22 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kuberag-agent-deployment
+  name: kuberag-agent-llamaindex
   namespace: {{ .Release.Name }}
-  labels:
-    app: {{ .Release.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: 'Helm'
-    meta.helm.sh/release-namespace: 'default'
 spec:
-  replicas: 2
+  replicas: {{ .Values.frameworks.llamaindex.replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: kuberag-agent-llamaindex
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
+        app: kuberag-agent-llamaindex
     spec:
       volumes:
         - name: secret-volume
@@ -26,6 +21,9 @@ spec:
       containers:
       - name: kuberag
         image: {{ .Values.AGENT_IMAGE }}
+        env:
+        - name: LLM_FRAMEWORK
+          value: "llamaindex"
         volumeMounts:
           - name: secret-volume
             mountPath: "/etc/secret-volume"
