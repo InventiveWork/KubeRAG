@@ -12,6 +12,9 @@ def get_agent():
     elif llm_framework == "langchain":
         from .frameworks.langchain_agent import LangChainAgent
         return LangChainAgent()
+    elif llm_framework == "gemini":
+        from .frameworks.gemini_agent import GeminiAgent
+        return GeminiAgent()
     else:
         raise ValueError(f"Unknown LLM framework: {llm_framework}")
 
