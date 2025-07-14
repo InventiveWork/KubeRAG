@@ -1,21 +1,31 @@
-from langchain_openai import AzureChatOpenAI
-from .base import Agent
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+from .base import Agent
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
-api_key = os.getenv('AZURE_API_KEY')
-azure_endpoint = os.getenv('AZURE_ENDPOINT')
-api_version = os.getenv('AZURE_API_VERSION')
 
 class LangChainAgent(Agent):
     def __init__(self):
-        self.llm = AzureChatOpenAI(
-            openai_api_version=api_version,
-            azure_deployment="gpt-4-32k",
-            azure_endpoint=azure_endpoint,
-            api_key=api_key,
-        )
+        llm_provider = os.getenv('LLM_PROVIDER')
+        ai_model_id = os.getenv('AI_MODEL_ID')
+        if llm_provider == "azure_openai":
+            self.llm = AzureChatOpenAI(
+                openai_api_version=os.getenv("AZURE_API_VERSION"),
+                azure_deployment=os.getenv("AZURE_LLM_MODEL_DEPLOYMENT"),
+                azure_endpoint=os.getenv("AZURE_ENDPOINT"),
+                api_key=os.getenv("AZURE_API_KEY"),
+            )
+        elif llm_provider == "openai":
+            self.llm = ChatOpenAI(api_key=os.getenv("OPENAI_API_KEY"), model=ai_model_id)
+        elif llm_provider == "groq":
+            self.llm = ChatGroq(api_key=os.getenv("GROQ_API_KEY"), model_name=ai_model_id)
+        elif llm_provider == "gemini":
+            self.llm = ChatGoogleGenerativeAI(model=ai_model_id, google_api_key=os.getenv("GEMINI_API_KEY"))
+        else:
+            raise ValueError(f"Unknown LLM provider: {llm_provider}")
 
     def chat(self, query):
         return self.llm.invoke(query).content
