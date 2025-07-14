@@ -27,6 +27,16 @@ spec:
         env:
         - name: LLM_FRAMEWORK
           value: {{ .name }}
+        - name: LLM_PROVIDER
+          value: {{ $.Values.LLM_PROVIDER }}
+        {{- range $.Values.llmProviders }}
+        {{- if eq .name $.Values.LLM_PROVIDER }}
+        {{- range .env }}
+        - name: {{ .name }}
+          value: {{ .value }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
         volumeMounts:
           - name: secret-volume
             mountPath: "/etc/secret-volume"
