@@ -1,6 +1,4 @@
 python-dotenv
-Flask
-Flask-Cors
 pymongo
 llama-index
 llama-index-embeddings-huggingface
@@ -20,6 +18,7 @@ gunicorn
 structlog
 opentelemetry-api
 opentelemetry-sdk
-opentelemetry-instrumentation-flask
+opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-requests
-prometheus-flask-exporter
+fastapi
+uvicorn
