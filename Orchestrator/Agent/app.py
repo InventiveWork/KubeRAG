@@ -1,9 +1,10 @@
 import logging
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 import agent
 import uvicorn
+from .security import get_api_key
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -48,6 +49,15 @@ async def startup_event():
 FastAPIInstrumentor.instrument_app(app)
 RequestsInstrumentor().instrument()
 
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    return response
+
 class ChatRequest(BaseModel):
     input: str
 
@@ -56,7 +66,7 @@ class ChatResponse(BaseModel):
 
 from fastapi import HTTPException
 
-@app.post("/api/chat", response_model=ChatResponse)
+@app.post("/api/chat", response_model=ChatResponse, dependencies=[Depends(get_api_key)])
 def chat_endpoint(request: ChatRequest):
     global agent_instance
     log.info("Received chat request", query=request.input)

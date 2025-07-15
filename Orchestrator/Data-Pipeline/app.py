@@ -1,6 +1,6 @@
 import logging
 import structlog
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from pydantic import BaseModel
 import load
 import load_mongo
@@ -8,6 +8,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import uvicorn
+from .security import get_api_key
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -45,6 +46,15 @@ app = FastAPI()
 # Instrument FastAPI and requests
 FastAPIInstrumentor.instrument_app(app)
 RequestsInstrumentor().instrument()
+
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    return response
 
 UPLOAD_FOLDER = '/data'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'json'}
@@ -85,12 +95,19 @@ def extract_text_from_file(filepath, file_extension):
         raise HTTPException(status_code=400, detail=f"Error extracting text from file: {e}")
     return ""
 
-@app.post("/api/embed_url", response_model=EmbedResponse)
+import re
+
+@app.post("/api/embed_url", response_model=EmbedResponse, dependencies=[Depends(get_api_key)])
 def embed_url(request: EmbedUrlRequest):
     log.info("Received embed URL request", url=request.url)
     if not request.url:
         log.error("URL is required")
         raise HTTPException(status_code=400, detail="URL is required")
+
+    # URL validation
+    if not re.match(r'^https?://', request.url):
+        log.error("Invalid URL scheme", url=request.url)
+        raise HTTPException(status_code=400, detail="Invalid URL scheme. Only HTTP and HTTPS are allowed.")
 
     try:
         response = requests.get(request.url)
@@ -116,7 +133,7 @@ def embed_url(request: EmbedUrlRequest):
     log.info("URL embedded successfully", url=request.url)
     return EmbedResponse(message="URL embedded successfully")
 
-@app.post("/api/embed", response_model=EmbedResponse)
+@app.post("/api/embed", response_model=EmbedResponse, dependencies=[Depends(get_api_key)])
 def embed(file: UploadFile = File(...)):
     log.info("Received embed file request")
     if not file:
