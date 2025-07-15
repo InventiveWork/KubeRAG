@@ -13,10 +13,38 @@ spec:
   - host: {{ .Values.INGRESS_HOST }}
     http:
       paths:
-      - path:
+      - path: /
         pathType: Prefix
         backend:
           service:
-            name: {{ .Release.Name }}-agent-service
+            name: kuberag-agent-langchain
+            port:
+              number: 80
+      - path: /langchain
+        pathType: Prefix
+        backend:
+          service:
+            name: kuberag-agent-langchain
+            port:
+              number: 80
+      - path: /llamaindex
+        pathType: Prefix
+        backend:
+          service:
+            name: kuberag-agent-llamaindex
+            port:
+              number: 80
+      - path: /gemini
+        pathType: Prefix
+        backend:
+          service:
+            name: kuberag-agent-gemini
+            port:
+              number: 80
+      - path: /semantic-kernel
+        pathType: Prefix
+        backend:
+          service:
+            name: kuberag-agent-semantic-kernel
             port:
               number: 80
