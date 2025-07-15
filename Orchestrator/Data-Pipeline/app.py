@@ -1,16 +1,18 @@
 import logging
 import structlog
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from pydantic import BaseModel
 import load
 import load_mongo
 import os
 import requests
 from bs4 import BeautifulSoup
+import uvicorn
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
 # Configure OpenTelemetry
@@ -38,21 +40,20 @@ structlog.configure(
 )
 log = structlog.get_logger()
 
-# Flask constructor takes the name of
-# current module (__name__) as argument.
-app = Flask(__name__)
+app = FastAPI()
 
-from prometheus_flask_exporter import PrometheusMetrics
-
-# Instrument Flask and requests
-FlaskInstrumentor().instrument_app(app)
+# Instrument FastAPI and requests
+FastAPIInstrumentor.instrument_app(app)
 RequestsInstrumentor().instrument()
-metrics = PrometheusMetrics(app)
 
 UPLOAD_FOLDER = '/data'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'json'}
 
-app.config['DATA'] = UPLOAD_FOLDER
+class EmbedUrlRequest(BaseModel):
+    url: str
+
+class EmbedResponse(BaseModel):
+    message: str
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -80,28 +81,27 @@ def extract_text_from_file(filepath, file_extension):
             return json.dumps(data)
     return ""
 
-@app.route('/api/embed_url', methods=['POST'])
-def embed_url():
-    url = request.get_json().get('url')
-    log.info("Received embed URL request", url=url)
-    if not url:
+@app.post("/api/embed_url", response_model=EmbedResponse)
+def embed_url(request: EmbedUrlRequest):
+    log.info("Received embed URL request", url=request.url)
+    if not request.url:
         log.error("URL is required")
-        return jsonify({"error": "URL is required"}), 400
+        raise HTTPException(status_code=400, detail="URL is required")
 
     try:
-        response = requests.get(url)
+        response = requests.get(request.url)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         log.error("Failed to fetch URL", error=e)
-        return jsonify({"error": f"Failed to fetch URL: {e}"}), 400
+        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {e}")
 
     soup = BeautifulSoup(response.content, 'html.parser')
     # get text and remove leading/trailing whitespace
     text = soup.get_text(separator=' ', strip=True)
 
     # Save the scraped text to a file
-    filename = url.split("/")[-1] + ".txt"
-    filepath = os.path.join(app.config['DATA'], filename)
+    filename = request.url.split("/")[-1] + ".txt"
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
     with open(filepath, 'w') as f:
         f.write(text)
     log.info("Saved scraped text to file", filepath=filepath)
@@ -109,27 +109,25 @@ def embed_url():
     # Load and index the scraped text
     engineType = os.getenv('VECTOR_STORE', 'mongodb')
     load.load_index(engineType)
-    log.info("URL embedded successfully", url=url)
-    return jsonify({"message": "URL embedded successfully"}), 200
+    log.info("URL embedded successfully", url=request.url)
+    return EmbedResponse(message="URL embedded successfully")
 
-@app.route('/api/embed', methods=['POST'])
-def embed():
+@app.post("/api/embed", response_model=EmbedResponse)
+def embed(file: UploadFile = File(...)):
     log.info("Received embed file request")
-    if 'file' not in request.files:
+    if not file:
         log.error("No file part in request")
-        return jsonify({"error": "No file part"}), 400
+        raise HTTPException(status_code=400, detail="No file part in request")
     
-    file = request.files['file']
-    # If the user does not select a file, the browser submits an
-    # empty file without a filename.
     if file.filename == '':
         log.error("No selected file")
-        return jsonify({"error": "No selected file"}), 400
+        raise HTTPException(status_code=400, detail="No selected file")
     
-    if file and allowed_file(file.filename):
+    if allowed_file(file.filename):
         filename = file.filename
-        filepath = os.path.join(app.config['DATA'], filename)
-        file.save(filepath)
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        with open(filepath, "wb") as buffer:
+            buffer.write(file.file.read())
         log.info("Saved uploaded file", filepath=filepath)
 
         file_extension = filename.rsplit('.', 1)[1].lower()
@@ -144,16 +142,15 @@ def embed():
         engineType = os.getenv('VECTOR_STORE', 'mongodb')
         load.load_index(engineType)
         log.info("File embedded successfully", filename=filename)
-        return jsonify({"message": "File embedded successfully"}), 200
-    
-@app.route('/api/testMongo', methods=['GET'])
-def upload_mongo():
+        return EmbedResponse(message="File embedded successfully")
+    else:
+        log.error("File type not allowed", filename=file.filename)
+        raise HTTPException(status_code=400, detail="File type not allowed")
+
+@app.get('/api/testMongo')
+def upload_mongo_endpoint():
     load_mongo.load_index()
+    return {"message": "Mongo test complete"}
 
-
-# main driver function
-if __name__ == '__main__':
-
-    # run() method of Flask class runs the application 
-    # on the local development server.
-    app.run()
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=5001)
