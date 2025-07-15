@@ -20,5 +20,5 @@ opentelemetry-api
 opentelemetry-sdk
 opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-requests
-fastapi
+fastapi[security]
 uvicorn
