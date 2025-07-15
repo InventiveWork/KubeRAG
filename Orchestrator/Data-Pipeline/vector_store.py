@@ -17,23 +17,25 @@ class QdrantVectorStore(VectorStore):
     def load_index(self, **kwargs):
         ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
         DATA_PATH = os.path.join(ROOT_DIR, 'data')
-        documents = SimpleDirectoryReader(DATA_PATH).load_data()
 
         client = qdrant_client.QdrantClient(
             url=os.getenv("QDRANT_URL"),
             api_key=os.getenv("QDRANT_API_KEY"),
         )
-
         vector_store = QdrantVectorStore(client=client, collection_name=os.getenv("QDRANT_COLLECTION_NAME"))
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
-        index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
-        return index
+
+        for filename in os.listdir(DATA_PATH):
+            if os.path.isfile(os.path.join(DATA_PATH, filename)):
+                documents = SimpleDirectoryReader(input_files=[os.path.join(DATA_PATH, filename)]).load_data()
+                VectorStoreIndex.from_documents(documents, storage_context=storage_context)
+
+        return True
 
 class MongoDBVectorStore(VectorStore):
     def load_index(self, **kwargs):
         ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
         DATA_PATH = os.path.join(ROOT_DIR, 'data')
-        documents = SimpleDirectoryReader(DATA_PATH).load_data()
 
         client = MongoClient(os.getenv("MONGODB_URI"), server_api=ServerApi('1'))
 
@@ -43,13 +45,16 @@ class MongoDBVectorStore(VectorStore):
             collection_name=os.getenv('MONGODB_VECTORS'),
             index_name=os.getenv('MONGODB_VECTOR_INDEX')
         )
-
         storage_context = StorageContext.from_defaults(vector_store=store)
-        index = VectorStoreIndex.from_documents(
-            documents, storage_context=storage_context,
-            show_progress=True,
-        )
-        return index
+
+        for filename in os.listdir(DATA_PATH):
+            if os.path.isfile(os.path.join(DATA_PATH, filename)):
+                documents = SimpleDirectoryReader(input_files=[os.path.join(DATA_PATH, filename)]).load_data()
+                VectorStoreIndex.from_documents(
+                    documents, storage_context=storage_context,
+                    show_progress=True,
+                )
+        return True
 
 def get_vector_store(name):
     if name == "qdrant":

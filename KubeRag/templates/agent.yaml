@@ -47,6 +47,13 @@ spec:
             name: {{ $.Release.Name }}-secret
         ports:
         - containerPort: 5000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service

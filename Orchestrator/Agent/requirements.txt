@@ -1,9 +1,7 @@
-python-dotenv==1.0.1
-pydantic==2.8.2
-pydantic_core==2.20.1
-Flask==3.0.3
-Flask-Cors==4.0.1
-pymongo==4.8.0
+python-dotenv
+Flask
+Flask-Cors
+pymongo
 llama-index
 llama-index-embeddings-huggingface
 llama-index-llms-azure-openai
@@ -12,10 +10,10 @@ llama-index-readers-file
 llama-index-readers-llama-parse
 llama-index-vector-stores-mongodb
 llama-index-embeddings-azure-openai
-llama-index-core
 qdrant-client
 llama-index-vector-stores-qdrant
 langchain
 google-generativeai
 semantic-kernel
 requests
+gunicorn
