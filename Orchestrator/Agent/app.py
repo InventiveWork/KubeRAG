@@ -37,6 +37,12 @@ structlog.configure(
 log = structlog.get_logger()
 
 app = FastAPI()
+agent_instance = None
+
+@app.on_event("startup")
+async def startup_event():
+    global agent_instance
+    agent_instance = agent.get_agent()
 
 # Instrument FastAPI and requests
 FastAPIInstrumentor.instrument_app(app)
@@ -48,12 +54,19 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     output: str
 
+from fastapi import HTTPException
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat_endpoint(request: ChatRequest):
+    global agent_instance
     log.info("Received chat request", query=request.input)
-    response = agent.chat(request.input)
-    log.info("Sending chat response", response=response)
-    return ChatResponse(output=response)
+    try:
+        response = agent_instance.chat(request.input)
+        log.info("Sending chat response", response=response)
+        return ChatResponse(output=response)
+    except Exception as e:
+        log.error("Error during chat", error=e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000)
