@@ -10,3 +10,9 @@ beautifulsoup4
 requests
 pypdf
 docx2txt
+structlog
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-flask
+opentelemetry-instrumentation-requests
+prometheus-flask-exporter
