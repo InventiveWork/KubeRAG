@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Orchestrator/Agent/Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - LLM_FRAMEWORK=${LLM_FRAMEWORK}
+      - VECTOR_STORE=${VECTOR_STORE}
+      - API_KEY=${API_KEY}
+
+  data-pipeline:
+    build:
+      context: .
+      dockerfile: Orchestrator/Data-Pipeline/Dockerfile
+    ports:
+      - "5001:5001"
+    env_file:
+      - .env
+    environment:
+      - VECTOR_STORE=${VECTOR_STORE}
+      - API_KEY=${API_KEY}
+    volumes:
+      - ./Orchestrator/Data-Pipeline/data:/data
