@@ -34,3 +34,10 @@ spec:
             name: {{ .Release.Name }}-cm
         ports:
         - containerPort: 5001
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
