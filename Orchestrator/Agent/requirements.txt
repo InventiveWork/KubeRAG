@@ -17,3 +17,9 @@ google-generativeai
 semantic-kernel
 requests
 gunicorn
+structlog
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-flask
+opentelemetry-instrumentation-requests
+prometheus-flask-exporter
