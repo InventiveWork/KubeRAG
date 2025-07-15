@@ -6,3 +6,7 @@ qdrant-client
 llama-index-vector-stores-qdrant
 llama-index-vector-stores-mongodb
 gunicorn
+beautifulsoup4
+requests
+pypdf
+docx2txt

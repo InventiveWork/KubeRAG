@@ -28,6 +28,8 @@ class QdrantVectorStore(VectorStore):
         for filename in os.listdir(DATA_PATH):
             if os.path.isfile(os.path.join(DATA_PATH, filename)):
                 documents = SimpleDirectoryReader(input_files=[os.path.join(DATA_PATH, filename)]).load_data()
+                for doc in documents:
+                    doc.doc_id = filename
                 VectorStoreIndex.from_documents(documents, storage_context=storage_context)
 
         return True
@@ -50,6 +52,8 @@ class MongoDBVectorStore(VectorStore):
         for filename in os.listdir(DATA_PATH):
             if os.path.isfile(os.path.join(DATA_PATH, filename)):
                 documents = SimpleDirectoryReader(input_files=[os.path.join(DATA_PATH, filename)]).load_data()
+                for doc in documents:
+                    doc.doc_id = filename
                 VectorStoreIndex.from_documents(
                     documents, storage_context=storage_context,
                     show_progress=True,
