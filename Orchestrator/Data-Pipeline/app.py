@@ -60,25 +60,29 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def extract_text_from_file(filepath, file_extension):
-    if file_extension == 'txt':
-        with open(filepath, 'r') as f:
-            return f.read()
-    elif file_extension == 'pdf':
-        import pypdf
-        text = ""
-        with open(filepath, 'rb') as f:
-            reader = pypdf.PdfReader(f)
-            for page in reader.pages:
-                text += page.extract_text()
-        return text
-    elif file_extension == 'docx':
-        import docx2txt
-        return docx2txt.process(filepath)
-    elif file_extension == 'json':
-        import json
-        with open(filepath, 'r') as f:
-            data = json.load(f)
-            return json.dumps(data)
+    try:
+        if file_extension == 'txt':
+            with open(filepath, 'r') as f:
+                return f.read()
+        elif file_extension == 'pdf':
+            import pypdf
+            text = ""
+            with open(filepath, 'rb') as f:
+                reader = pypdf.PdfReader(f)
+                for page in reader.pages:
+                    text += page.extract_text()
+            return text
+        elif file_extension == 'docx':
+            import docx2txt
+            return docx2txt.process(filepath)
+        elif file_extension == 'json':
+            import json
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                return json.dumps(data)
+    except Exception as e:
+        log.error("Error extracting text from file", error=e)
+        raise HTTPException(status_code=400, detail=f"Error extracting text from file: {e}")
     return ""
 
 @app.post("/api/embed_url", response_model=EmbedResponse)

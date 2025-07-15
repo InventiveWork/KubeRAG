@@ -20,7 +20,3 @@ def get_agent():
         return SemanticKernelAgent()
     else:
         raise ValueError(f"Unknown LLM framework: {llm_framework}")
-
-def chat(input):
-    agent = get_agent()
-    return agent.chat(input)
