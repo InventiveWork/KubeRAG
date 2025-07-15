@@ -1,0 +1,15 @@
+frameworks:
+  - name: llamaindex
+    replicaCount: 1
+
+llmProviders:
+  - name: gemini
+    env:
+      - name: GEMINI_API_KEY
+        value: ""
+      - name: AI_MODEL_ID
+        value: "gemini-1.5-flash"
+      - name: SERVICE_ID
+        value: "gemini"
+
+LLM_PROVIDER: gemini

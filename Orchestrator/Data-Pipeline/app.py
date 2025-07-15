@@ -18,8 +18,8 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/api/upload', methods=['POST'])
-def upload():
+@app.route('/api/embed', methods=['POST'])
+def embed():
     if 'file' not in request.files:
         return False
     
