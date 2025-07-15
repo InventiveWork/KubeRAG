@@ -1,0 +1,15 @@
+frameworks:
+  - name: gemini
+    replicaCount: 1
+
+llmProviders:
+  - name: groq
+    env:
+      - name: GROQ_API_KEY
+        value: ""
+      - name: AI_MODEL_ID
+        value: "llama3-8b-8192"
+      - name: SERVICE_ID
+        value: "groq"
+
+LLM_PROVIDER: groq

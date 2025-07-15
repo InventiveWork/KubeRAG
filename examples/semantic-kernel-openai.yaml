@@ -1,0 +1,15 @@
+frameworks:
+  - name: "semantic-kernel"
+    replicaCount: 1
+
+llmProviders:
+  - name: openai
+    env:
+      - name: OPENAI_API_KEY
+        value: ""
+      - name: AI_MODEL_ID
+        value: "gpt-3.5-turbo"
+      - name: SERVICE_ID
+        value: "openai"
+
+LLM_PROVIDER: openai

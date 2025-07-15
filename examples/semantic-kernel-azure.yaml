@@ -1,0 +1,23 @@
+frameworks:
+  - name: "semantic-kernel"
+    replicaCount: 1
+
+llmProviders:
+  - name: azure_openai
+    env:
+      - name: AZURE_API_KEY
+        value: ""
+      - name: AZURE_ENDPOINT
+        value: ""
+      - name: AZURE_API_VERSION
+        value: ""
+      - name: AZURE_LLM_MODEL
+        value: ""
+      - name: AZURE_LLM_MODEL_DEPLOYMENT
+        value: ""
+      - name: AI_MODEL_ID
+        value: ""
+      - name: SERVICE_ID
+        value: "azure_openai"
+
+LLM_PROVIDER: azure_openai
