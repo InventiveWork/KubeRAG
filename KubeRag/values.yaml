@@ -1,18 +1,136 @@
-LLM_FRAMEWORK: 
-DATABASE_ENGINE: 
-AZURE_ENDPOINT: ""
-AZURE_API_VERSION: ""
-AZURE_ENDPOINT_EMBED: ""
-AZURE_ENDPOINT_VERSION_EMBED: ""
-AZURE_LLM_MODEL: ""
-AZURE_LLM_MODEL_EMBED: ""
-AZURE_LLM_MODEL_DEPLOYMENT: ""
-AZURE_LLM_MODEL_EMBED_DEPLOYMENT: ""
-AZURE_API_KEY: ""
-AZURE_API_KEY_EMBED: ""
-AGENT_IMAGE: 
-INGRESS_HOST:
-INGRESS_CLASS_NAME:
-MONGODB_NAME: 
-MONGODB_COLLECTION:
-MONGODB_VECTOR_INDEX: 
+# KubeRAG Helm Chart Values (Migrated to Nested Structure)
+nameOverride: ""
+fullnameOverride: ""
+
+# Images
+images:
+  agent:
+    repository: kuberag-agent
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  pipeline:
+    repository: kuberag-pipeline
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+# LLM Configuration
+llm:
+  provider: "azure_openai"  # openai, azure_openai
+  openai:
+    model: "gpt-3.5-turbo"
+    apiKey: ""  # Set via secret or external secret manager
+    baseUrl: ""  # Optional
+  azureOpenai:
+    deployment: "gpt-4o-mini"
+    apiVersion: "2025-01-01-preview"
+    endpoint: "https://doge-v2.cognitiveservices.azure.com"
+    apiKey: ""   # Set via secret - NEVER hardcode
+    embedDeployment: "text-embedding-ada-002"
+    embedModel: "text-embedding-ada-002"
+
+# Vector Store Configuration
+vectorStore:
+  type: "qdrant"  # qdrant, mongodb, postgresql, elasticsearch, neo4j, chroma, faiss, lancedb
+  dimension: 384
+  collectionName: "documents"
+  
+  # MongoDB Configuration
+  mongodb:
+    host: "mongodb-service"
+    port: 27017
+    database: "vectordb"
+    username: "kuberag"
+    password: ""  # Set via secret
+    connectionString: ""  # Optional, overrides individual settings
+    indexName: "vector_index"
+    deploy: false  # Set to true to deploy MongoDB instance
+
+  # Qdrant Configuration  
+  qdrant:
+    host: "qdrant-service"
+    port: 6333
+    grpcPort: 6334
+    preferGrpc: false
+    https: false
+    apiKey: ""  # Set via secret
+    timeout: 5.0
+    deploy: true  # Deploy Qdrant instance
+
+# Embedding Configuration
+embedding:
+  model: "all-MiniLM-L12-v2"
+  
+# Text Processing Configuration
+textProcessing:
+  chunkSize: 500
+  chunkOverlap: 50
+  method: "words"  # words, sentences, characters
+
+# Deployment Configuration
+deployment:
+  agent:
+    replicas: 2
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+  pipeline:
+    replicas: 1
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+# Service Configuration
+service:
+  type: "NodePort"  # LoadBalancer, NodePort, or ClusterIP
+  agent:
+    port: 80
+    targetPort: 8082
+    nodePort: 30080
+  pipeline:
+    port: 80
+    targetPort: 8001
+    nodePort: 30081
+
+# Ingress Configuration
+ingress:
+  enabled: false
+  className: "nginx"
+  host: "kuberag.local"  # Set to your domain
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: "kuberag-tls"
+
+# Persistence Configuration
+persistence:
+  enabled: true
+  storageClass: "standard"
+  accessMode: "ReadWriteOnce"
+  size: "10Gi"
+
+# Security Configuration
+security:
+  podSecurityContext:
+    fsGroup: 2000
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# Auto-scaling Configuration
+autoscaling:
+  enabled: false
+  minRe-plicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Secrets Configuration
+secrets: {} 

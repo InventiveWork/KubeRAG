@@ -3,8 +3,14 @@ kind: Ingress
 metadata:
   name: tls-{{ .Release.Name }}-ingress
   namespace: {{ .Release.Name }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
+  {{- if .Values.INGRESS_CLASS_NAME }}
   ingressClassName: {{ .Values.INGRESS_CLASS_NAME }}
+  {{- end }}
+  {{- if .Values.INGRESS_HOST }}
   tls:
   - hosts:
       - {{ .Values.INGRESS_HOST }}
@@ -13,10 +19,36 @@ spec:
   - host: {{ .Values.INGRESS_HOST }}
     http:
       paths:
-      - path: 
+      - path: /agent
         pathType: Prefix
         backend:
           service:
             name: {{ .Release.Name }}-agent-service
             port:
               number: 80
+      - path: /data
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-pipeline-service
+            port:
+              number: 80
+  {{- else }}
+  rules:
+  - http:
+      paths:
+      - path: /agent
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-agent-service
+            port:
+              number: 80
+      - path: /data
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-pipeline-service
+            port:
+              number: 80
+  {{- end }}

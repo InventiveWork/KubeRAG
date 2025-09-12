@@ -1,36 +1,72 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kuberag-data-pipeline-deployment
-  namespace: {{ .Release.Name }}
+  name: {{ .Release.Name }}-pipeline
+  namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}
+    app.kubernetes.io/name: kuberag-pipeline
     app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: 'Helm'
-    meta.helm.sh/release-namespace: 'default'
+    app.kubernetes.io/component: pipeline
+    app.kubernetes.io/managed-by: Helm
 spec:
-  replicas: 2
+  replicas: {{ .Values.deployment.pipeline.replicas | default 1 }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app.kubernetes.io/name: kuberag-pipeline
+      app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
+        app.kubernetes.io/name: kuberag-pipeline
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: pipeline
     spec:
-      volumes:
-        - name: secret-volume
-          secret:
-            secretName: {{ .Release.Name }}-secret
-            defaultMode: 384
+      securityContext:
+        {{- toYaml (.Values.security.podSecurityContext | default dict) | nindent 8 }}
       containers:
-      - name: kuberag
-        image: inventivework/kuberag-data-pipeline:0.0.2
-        volumeMounts:
-          - name: secret-volume
-            mountPath: "/etc/secret-volume"
+      - name: pipeline
+        image: {{ .Values.images.pipeline.repository | default "kuberag-universal-pipeline" }}:{{ .Values.images.pipeline.tag | default "latest" }}
+        imagePullPolicy: {{ .Values.images.pipeline.pullPolicy | default "Always" }}
+        ports:
+        - containerPort: {{ .Values.service.pipeline.targetPort | default 8001 }}
+          name: http
+        env:
+        - name: EMBEDDING_MODEL
+          value: "all-MiniLM-L6-v2"
         envFrom:
         - configMapRef:
-            name: {{ .Release.Name }}-cm
-        ports:
-        - containerPort: 5001
+            name: {{ .Release.Name }}-config
+        - secretRef:
+            name: {{ .Release.Name }}-secret
+        volumeMounts:
+        - name: vector-data
+          mountPath: /data
+        - name: huggingface-cache
+          mountPath: /home/nonroot/.cache/huggingface
+        resources:
+          {{- toYaml (.Values.deployment.pipeline.resources | default dict) | nindent 10 }}
+        securityContext:
+          {{- toYaml (.Values.security.securityContext | default dict) | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      {{- if (.Values.persistence.enabled | default false) }}
+      - name: vector-data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-vector-data-pvc
+      {{- else }}
+      - name: vector-data
+        emptyDir: {}
+      {{- end }}
+      - name: huggingface-cache
+        emptyDir: {}

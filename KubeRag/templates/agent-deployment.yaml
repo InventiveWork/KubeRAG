@@ -1,38 +1,91 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kuberag-agent-deployment
-  namespace: {{ .Release.Name }}
+  name: {{ .Release.Name }}-agent
+  namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}
+    app.kubernetes.io/name: kuberag-agent
     app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: 'Helm'
-    meta.helm.sh/release-namespace: 'default'
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/managed-by: Helm
 spec:
-  replicas: 2
+  replicas: {{ .Values.deployment.agent.replicas | default 2 }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app.kubernetes.io/name: kuberag-agent
+      app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
+        app.kubernetes.io/name: kuberag-agent
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: agent
     spec:
-      volumes:
-        - name: secret-volume
-          secret:
-            secretName: {{ .Release.Name }}-secret
-            defaultMode: 384
+      securityContext:
+        {{- toYaml .Values.security.podSecurityContext | nindent 8 }}
       containers:
-      - name: kuberag
-        image: {{ .Values.AGENT_IMAGE }}
-        volumeMounts:
-          - name: secret-volume
-            mountPath: "/etc/secret-volume"
+      - name: agent
+        image: {{ .Values.images.agent.repository | default "kuberag-universal-agent" }}:{{ .Values.images.agent.tag | default "latest" }}
+        imagePullPolicy: {{ .Values.images.agent.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - containerPort: {{ .Values.service.agent.targetPort | default 8082 }}
+          name: http
         envFrom:
         - configMapRef:
-            name: {{ .Release.Name }}-cm
+            name: {{ .Release.Name }}-config
         - secretRef:
             name: {{ .Release.Name }}-secret
-        ports:
-        - containerPort: 5000
+        volumeMounts:
+        - name: vector-data
+          mountPath: /data
+        - name: huggingface-cache
+          mountPath: /home/nonroot/.cache/huggingface
+        resources:
+          {{- toYaml .Values.deployment.agent.resources | nindent 10 }}
+        securityContext:
+          {{- toYaml .Values.security.securityContext | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      {{- if .Values.persistence.enabled }}
+      - name: vector-data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-vector-data-pvc
+      {{- else }}
+      - name: vector-data
+        emptyDir: {}
+      {{- end }}
+      - name: huggingface-cache
+        emptyDir: {}
+
+{{- if .Values.persistence.enabled }}
+---
+# Vector Data PVC (shared between agent and pipeline)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-vector-data-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: kuberag
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+{{- end }}

@@ -1,10 +1,27 @@
-FROM python:3.12.8
+FROM python:3.9-slim
 
-WORKDIR /Agent
+WORKDIR /app
 
-COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt
+# Copy requirements and install dependencies
+COPY Orchestrator/Agent/requirements.txt .
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
-COPY . .
+# Copy the application code
+COPY Orchestrator/Agent/app.py .
+COPY Orchestrator/Agent/llm_providers.py .
 
-CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]
+# Copy shared modules
+COPY Orchestrator/config/ ./config/
+COPY Orchestrator/vector_stores/ ./vector_stores/
+
+# Create models directory
+RUN mkdir -p /app/models
+
+# Set environment variables
+ENV PYTHONPATH=/app
+
+# Expose port
+EXPOSE 8082
+
+# Run the application
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8082"]
