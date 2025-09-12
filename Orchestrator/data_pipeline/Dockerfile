@@ -2,7 +2,7 @@
 FROM python:3.12.8-slim as builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential
-COPY Orchestrator/data_pipeline/requirements-minimal.txt requirements.txt
+COPY Orchestrator/data_pipeline/requirements.txt requirements.txt
 RUN pip3 install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 # Download the model during the build
