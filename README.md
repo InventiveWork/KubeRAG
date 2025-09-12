@@ -8,7 +8,7 @@
 
 
 # Architecture 
-<img src="KubeRAG-arch-0.0.2.png" alt="Alt Text" >
+
 
 # Getting started 
 
@@ -42,3 +42,39 @@ run following command to install the helm chart
 ```shell
 helm install my-release KubeRag-0.0.4 -f myvalues.yaml
 ```
+
+# Deployment Combinations
+
+KubeRAG supports multiple LLM providers and vector stores. Here are all possible deployment combinations:
+
+## Supported Combinations Matrix
+
+| LLM Provider    | Qdrant | MongoDB | ChromaDB | FAISS | PostgreSQL | Elasticsearch | Neo4j | LanceDB | Total |
+|-----------------|--------|---------|----------|-------|------------|---------------|-------|---------|-------|
+| Azure OpenAI    | ✅     | ✅      | ✅       | ✅    | ✅         | ✅            | ✅    | ✅      | 8     |
+| OpenAI          | ✅     | ✅      | ✅       | ✅    | ✅         | ✅            | ✅    | ✅      | 8     |
+| Anthropic       | ✅     | ✅      | ✅       | ✅    | ✅         | ✅            | ✅    | ✅      | 8     |
+| Google Gemini   | ✅     | ✅      | ✅       | ✅    | ✅         | ✅            | ✅    | ✅      | 8     |
+| Ollama (Local)  | ✅     | ✅      | ✅       | ✅    | ✅         | ✅            | ✅    | ✅      | 8     |
+| **Total**       | **5**  | **5**   | **5**    | **5** | **5**      | **5**         | **5** | **5**   | **40** |
+
+## Vector Store Characteristics
+
+- **Qdrant**: High-performance dedicated vector database (Recommended for production)
+- **MongoDB**: Document database with vector search capabilities
+- **ChromaDB**: Open-source embedding database
+- **FAISS**: Facebook's library for efficient similarity search
+- **PostgreSQL**: Traditional database with pgvector extension
+- **Elasticsearch**: Search engine with vector capabilities
+- **Neo4j**: Graph database with vector search
+- **LanceDB**: Modern columnar vector database
+
+## LLM Provider Features
+
+- **Azure OpenAI**: Enterprise-grade OpenAI models with Azure security
+- **OpenAI**: Direct OpenAI API access
+- **Anthropic**: Claude models for advanced reasoning
+- **Google Gemini**: Google's multimodal AI models
+- **Ollama**: Run local models without external API dependencies
+
+All 40 combinations are fully supported and can be deployed using the KubeRAG Helm chart with appropriate configuration.

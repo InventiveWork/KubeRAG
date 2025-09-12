@@ -5,7 +5,20 @@ sentence-transformers
 torch
 python-multipart
 pydantic
+
+# LLM providers (all supported)
 openai
 anthropic
 google-generativeai
+boto3
+
+# Vector stores (all supported)
 qdrant-client
+chromadb
+pymongo
+elasticsearch
+faiss-cpu
+psycopg2-binary
+neo4j
+lancedb
+pgvector

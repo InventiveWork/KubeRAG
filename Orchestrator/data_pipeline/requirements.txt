@@ -1,9 +1,5 @@
 python-dotenv
 llama-index
-pymongo
-qdrant-client
-llama-index-vector-stores-qdrant
-llama-index-vector-stores-mongodb
 gunicorn
 beautifulsoup4
 requests
@@ -21,3 +17,23 @@ uvicorn
 python-multipart
 torch
 sentence-transformers
+
+# Vector stores (all supported)
+qdrant-client
+pymongo
+chromadb
+elasticsearch
+faiss-cpu
+psycopg2-binary
+neo4j
+lancedb
+pgvector
+
+# LLamaIndex vector store integrations
+llama-index-vector-stores-qdrant
+llama-index-vector-stores-mongodb
+llama-index-vector-stores-chroma
+llama-index-vector-stores-elasticsearch
+llama-index-vector-stores-faiss
+llama-index-vector-stores-postgres
+llama-index-vector-stores-neo4jvector

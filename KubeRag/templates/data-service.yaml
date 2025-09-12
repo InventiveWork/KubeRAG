@@ -15,7 +15,7 @@ spec:
   - protocol: TCP
     port: {{ .Values.service.pipeline.port }}
     targetPort: {{ .Values.service.pipeline.targetPort }}
-    {{- if eq .Values.service.type "NodePort" }}
+    {{- if and (eq .Values.service.type "NodePort") (.Values.service.pipeline.nodePort) }}
     nodePort: {{ .Values.service.pipeline.nodePort }}
     {{- end }}
   type: {{ .Values.service.type }}

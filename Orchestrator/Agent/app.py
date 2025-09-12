@@ -260,14 +260,23 @@ async def generate_response(query: str, context: str, sources: List[Dict]) -> st
 async def generate_llm_response(query: str, context: str) -> Optional[str]:
     """Generate response using configured LLM"""
     try:
-        if not context.strip() or not llm_providers:
+        if not llm_providers:
             return None
         
-        # Simple prompt template
-        prompt = f"""Based on the following context, please answer the user's question.
+        # Create prompt based on whether we have context or not
+        if context.strip():
+            # RAG prompt with context
+            prompt = f"""Based on the following context, please answer the user's question.
 
 Context:
 {context}
+
+Question: {query}
+
+Answer:"""
+        else:
+            # General conversation prompt without context
+            prompt = f"""You are a helpful AI assistant. Please answer the user's question.
 
 Question: {query}
 

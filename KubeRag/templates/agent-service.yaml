@@ -15,7 +15,7 @@ spec:
   - protocol: TCP
     port: {{ .Values.service.agent.port }}
     targetPort: {{ .Values.service.agent.targetPort }}
-    {{- if eq .Values.service.type "NodePort" }}
+    {{- if and (eq .Values.service.type "NodePort") (.Values.service.agent.nodePort) }}
     nodePort: {{ .Values.service.agent.nodePort }}
     {{- end }}
   type: {{ .Values.service.type }}
