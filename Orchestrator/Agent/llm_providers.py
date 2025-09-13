@@ -248,10 +248,37 @@ class OllamaProvider(BaseLLMProvider):
             self.base_url = self.config.get('base_url') or os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
             self.model = self.config.get('model') or os.getenv('OLLAMA_MODEL', 'llama2')
             
-            # Test if Ollama is available
+            # Test if Ollama is available by making a connection test
             import httpx
-            self.available = True
-            logger.info("Ollama provider initialized successfully")
+            import asyncio
+            
+            async def test_connection():
+                try:
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        response = await client.get(f"{self.base_url}/api/tags")
+                        return response.status_code == 200
+                except:
+                    return False
+            
+            # Run the connection test
+            loop = None
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            if loop.is_running():
+                # If we're in an async context, we can't test synchronously
+                # Mark as available but it will fail at runtime if not reachable
+                self.available = True
+                logger.info("Ollama provider initialized (connection not tested in async context)")
+            else:
+                self.available = loop.run_until_complete(test_connection())
+                if self.available:
+                    logger.info("Ollama provider initialized successfully")
+                else:
+                    logger.warning("Ollama provider not available - connection test failed")
                 
         except Exception as e:
             self.available = False

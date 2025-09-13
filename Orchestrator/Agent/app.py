@@ -282,20 +282,34 @@ Question: {query}
 
 Answer:"""
         
-        # Try each available LLM provider in order of preference
-        provider_order = ['azure_openai', 'openai', 'anthropic', 'gemini', 'ollama']
+        # Try each available LLM provider - prioritize the ones that are actually configured
+        # Define preferred order, but only use providers that are actually available
+        preferred_order = ['azure_openai', 'openai', 'anthropic', 'gemini', 'ollama']
+        available_providers = list(llm_providers.keys())
         
-        for provider_name in provider_order:
-            if provider_name in llm_providers:
-                try:
-                    provider = llm_providers[provider_name]
-                    response = await provider.generate_response(prompt)
-                    if response:
-                        logger.info(f"Generated response using {provider_name}")
-                        return response
-                except Exception as e:
-                    logger.warning(f"Provider {provider_name} failed: {e}")
-                    continue
+        # Sort available providers by preferred order
+        sorted_providers = []
+        for provider in preferred_order:
+            if provider in available_providers:
+                sorted_providers.append(provider)
+        
+        # Add any other available providers that aren't in the preferred list
+        for provider in available_providers:
+            if provider not in sorted_providers:
+                sorted_providers.append(provider)
+        
+        logger.info(f"Trying LLM providers in order: {sorted_providers}")
+        
+        for provider_name in sorted_providers:
+            try:
+                provider = llm_providers[provider_name]
+                response = await provider.generate_response(prompt)
+                if response:
+                    logger.info(f"Generated response using {provider_name}")
+                    return response
+            except Exception as e:
+                logger.warning(f"Provider {provider_name} failed: {e}")
+                continue
         
         # If all providers fail
         logger.warning("All LLM providers failed or unavailable")
