@@ -10,3 +10,5 @@ node_modules
 demo-ui/node_modules
 demo-*
 kuberag-ui
+kuberag-configurations
+kuberag-web-ui

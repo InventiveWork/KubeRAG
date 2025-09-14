@@ -1,0 +1,23 @@
+{
+  "deployment": {
+    "timestamp": "2025-09-14T19:38:58Z",
+    "namespace": "kuberag-azure",
+    "release_name": "kuberag-azure",
+    "llm_provider": "azure_openai",
+    "vector_store": "qdrant",
+    "embedding_model": "all-MiniLM-L6-v2",
+    "web_ui_enabled": "true"
+  },
+  "access": {
+    "agent_api": "http://localhost:31390",
+    "pipeline_api": "http://localhost:31095",
+    "web_ui": "http://localhost:5003",
+    "qdrant_ui": "http://localhost:30333"
+  },
+  "commands": {
+    "check_status": "kubectl get pods -n kuberag-azure",
+    "view_logs": "kubectl logs -n kuberag-azure -l app=agent",
+    "run_tests": "./test-kuberag-services.sh",
+    "uninstall": "helm uninstall kuberag-azure -n kuberag-azure"
+  }
+}

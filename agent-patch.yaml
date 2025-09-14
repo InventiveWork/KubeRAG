@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-patch
+  namespace: kuberag-gemini
+data:
+  app_patch.py: |
+    import os
+    import httpx
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Monkey patch for embedding service URL
+    original_post = httpx.AsyncClient.post
+
+    async def patched_post(self, url, **kwargs):
+        # Intercept and fix the embedding service URL
+        if "kuberag-pipeline-service.kuberag.svc.cluster.local" in url:
+            # Use environment variable or corrected service name
+            url = os.getenv('PIPELINE_SERVICE_URL', 'http://kuberag-gemini-pipeline-service/api/embed/text')
+            logger.info(f"Redirecting embedding request to: {url}")
+        return await original_post(self, url, **kwargs)
+
+    httpx.AsyncClient.post = patched_post
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-init-script
+  namespace: kuberag-gemini
+data:
+  init.sh: |
+    #!/bin/bash
+    # Add the patch to the Python path
+    echo "import sys; sys.path.insert(0, '/patches')" > /tmp/sitecustomize.py
+    export PYTHONPATH=/tmp:$PYTHONPATH
+    # Import the patch module on startup
+    echo "import app_patch" >> /tmp/sitecustomize.py

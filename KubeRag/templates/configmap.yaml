@@ -86,6 +86,11 @@ data:
   SERVICE_PORT_AGENT: {{ .Values.service.agent.targetPort | default 8000 | quote }}
   SERVICE_PORT_PIPELINE: {{ .Values.service.pipeline.targetPort | default 8001 | quote }}
 
+  # Pipeline Service URL (dynamic based on release name)
+  PIPELINE_SERVICE_URL: "http://{{ .Release.Name }}-pipeline-service/api/embed/text"
+  NAMESPACE: {{ .Release.Namespace | quote }}
+  HELM_RELEASE_NAME: {{ .Release.Name | quote }}
+
   # Cache Configuration
   TRANSFORMERS_CACHE: "/home/nonroot/.cache/huggingface"
   HUGGINGFACE_HUB_CACHE: "/home/nonroot/.cache/huggingface"

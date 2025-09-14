@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuberag-gemini-agent
+  namespace: kuberag-gemini
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: fix-embedding-url
+        image: busybox
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Fixing embedding service URL..."
+          # This init container is just a placeholder
+          # The real fix is in the environment variable
+          echo "PIPELINE_SERVICE_URL is set to: $PIPELINE_SERVICE_URL"
+        env:
+        - name: PIPELINE_SERVICE_URL
+          value: "http://kuberag-gemini-pipeline-service/api/embed/text"
+      containers:
+      - name: agent
+        env:
+        - name: PIPELINE_SERVICE_URL
+          value: "http://kuberag-gemini-pipeline-service/api/embed/text"
+        - name: PYTHONUNBUFFERED
+          value: "1"

@@ -48,10 +48,11 @@ vector_store = None
 config = None
 embedder = None
 llm_providers = {}
+pipeline_service_url = None  # Cache the discovered pipeline service URL
 
 def initialize_services():
     """Initialize vector store and embedding services"""
-    global vector_store, config, embedder, llm_providers
+    global vector_store, config, embedder, llm_providers, pipeline_service_url
     
     try:
         # Load configuration
@@ -79,7 +80,39 @@ def initialize_services():
         except Exception as e:
             logger.warning(f"Failed to load local embedder: {e}")
             embedder = None
-        
+
+        # Discover pipeline service URL at startup
+        pipeline_service_url = os.getenv('PIPELINE_SERVICE_URL')
+        if not pipeline_service_url:
+            logger.info("Discovering pipeline service...")
+            import requests
+            # Try common service name patterns
+            possible_names = [
+                'pipeline-service',
+                'data-pipeline-service'
+            ]
+
+            # Also try with release name prefix if available
+            release_name = os.getenv('HELM_RELEASE_NAME')
+            if release_name:
+                possible_names.insert(0, f'{release_name}-pipeline-service')
+
+            for service_name in possible_names:
+                try:
+                    test_url = f'http://{service_name}/health'
+                    response = requests.get(test_url, timeout=2)
+                    if response.status_code == 200:
+                        pipeline_service_url = f'http://{service_name}/api/embed/text'
+                        logger.info(f"Discovered pipeline service at: {service_name}")
+                        break
+                except:
+                    continue
+
+            if pipeline_service_url:
+                logger.info(f"Pipeline service URL discovered: {pipeline_service_url}")
+            else:
+                logger.warning("Pipeline service could not be discovered, will retry per request")
+
         # Initialize LLM providers
         try:
             llm_configs = {
@@ -162,9 +195,42 @@ async def chat(request: ChatRequest):
         else:
             # Fallback 1: use pipeline service for embedding
             try:
+                # Use cached pipeline service URL or get from environment
+                pipeline_url = pipeline_service_url or os.getenv('PIPELINE_SERVICE_URL')
+
+                if not pipeline_url:
+                    # If not set, try to use local service discovery
+                    # The service should be in the same namespace
+                    logger.warning("PIPELINE_SERVICE_URL not set, attempting local service discovery")
+                    # Try common patterns - this will work within the same namespace
+                    possible_names = [
+                        'pipeline-service',
+                        'kuberag-pipeline-service',
+                        'data-pipeline-service'
+                    ]
+
+                    # Try each possible service name
+                    for service_name in possible_names:
+                        try:
+                            test_url = f'http://{service_name}/health'
+                            async with httpx.AsyncClient(timeout=2.0) as test_client:
+                                test_response = await test_client.get(test_url)
+                                if test_response.status_code == 200:
+                                    pipeline_url = f'http://{service_name}/api/embed/text'
+                                    logger.info(f"Found pipeline service at: {service_name}")
+                                    break
+                        except:
+                            continue
+
+                    if not pipeline_url:
+                        # Last resort: construct from environment if possible
+                        logger.warning("Could not discover pipeline service")
+                        raise Exception("Pipeline service URL not configured and could not be discovered")
+
+                logger.info(f"Using pipeline URL: {pipeline_url}")
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     embed_response = await client.post(
-                        "http://kuberag-pipeline-service.kuberag.svc.cluster.local/api/embed/text",
+                        pipeline_url,
                         json={"text": message}
                     )
                     if embed_response.status_code == 200:
