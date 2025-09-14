@@ -53,20 +53,84 @@ pipeline_service_url = None  # Cache the discovered pipeline service URL
 def initialize_services():
     """Initialize vector store and embedding services"""
     global vector_store, config, embedder, llm_providers, pipeline_service_url
-    
+
+    logger.info("STARTING initialize_services() function")
     try:
         # Load configuration
         config = Config()
+        logger.info(f"Config loaded - vector store type: '{config.vector_store.type}'")
+        logger.info(f"Config vector store object: {config.vector_store}")
+        logger.info(f"Config vector store attributes: {dir(config.vector_store)}")
         
         # Initialize vector store using the same factory as data pipeline
+        # Build configuration based on vector store type
         vector_store_config = {
             'dimension': config.vector_store.dimension,
-            'collection_name': config.vector_store.collection_name,
-            'host': config.vector_store.qdrant_host,
-            'port': config.vector_store.qdrant_port,
-            'api_key': config.vector_store.qdrant_api_key,
         }
-        
+
+        # Add vector store specific configuration
+        logger.info(f"Vector store type: '{config.vector_store.type}', all config attributes: {dir(config.vector_store)}")
+        if config.vector_store.type in ['qdrant']:
+            vector_store_config.update({
+                'collection_name': config.vector_store.collection_name,
+                'host': config.vector_store.qdrant_host,
+                'port': config.vector_store.qdrant_port,
+                'api_key': config.vector_store.qdrant_api_key,
+            })
+        elif config.vector_store.type in ['faiss']:
+            # FAISS needs shared storage paths for index sharing
+            # Access FAISS config directly from environment variables since config object doesn't have these attributes
+            faiss_config = {
+                'index_path': os.getenv('VECTOR_STORE_FAISS_INDEX_PATH', '/data/faiss_index'),
+                'metadata_path': os.getenv('VECTOR_STORE_FAISS_METADATA_PATH', '/data/faiss_metadata.pkl'),
+                'index_type': os.getenv('VECTOR_STORE_FAISS_INDEX_TYPE', 'FlatL2'),
+            }
+            logger.info(f"FAISS configuration: {faiss_config}")
+            vector_store_config.update(faiss_config)
+        elif config.vector_store.type in ['mongodb']:
+            vector_store_config.update({
+                'collection_name': config.vector_store.collection_name,
+                'host': getattr(config.vector_store, 'mongodb_host', 'localhost'),
+                'port': getattr(config.vector_store, 'mongodb_port', 27017),
+                'database': getattr(config.vector_store, 'mongodb_database', 'kuberag'),
+                'username': getattr(config.vector_store, 'mongodb_username', None),
+                'password': getattr(config.vector_store, 'mongodb_password', None),
+            })
+        elif config.vector_store.type in ['chroma']:
+            vector_store_config.update({
+                'collection_name': config.vector_store.collection_name,
+                'persist_directory': '/app/data/chroma',
+            })
+        elif config.vector_store.type in ['postgresql', 'pgvector']:
+            vector_store_config.update({
+                'host': getattr(config.vector_store, 'postgres_host', 'localhost'),
+                'port': getattr(config.vector_store, 'postgres_port', 5432),
+                'database': getattr(config.vector_store, 'postgres_database', 'kuberag'),
+                'username': getattr(config.vector_store, 'postgres_username', 'postgres'),
+                'password': getattr(config.vector_store, 'postgres_password', ''),
+                'table_name': getattr(config.vector_store, 'postgres_table', 'vectors'),
+            })
+        elif config.vector_store.type in ['elasticsearch', 'elastic']:
+            vector_store_config.update({
+                'host': getattr(config.vector_store, 'elasticsearch_host', 'localhost'),
+                'port': getattr(config.vector_store, 'elasticsearch_port', 9200),
+                'index_name': getattr(config.vector_store, 'elasticsearch_index', 'kuberag-vectors'),
+                'username': getattr(config.vector_store, 'elasticsearch_username', None),
+                'password': getattr(config.vector_store, 'elasticsearch_password', None),
+            })
+        elif config.vector_store.type in ['neo4j']:
+            vector_store_config.update({
+                'uri': getattr(config.vector_store, 'neo4j_uri', 'bolt://localhost:7687'),
+                'username': getattr(config.vector_store, 'neo4j_username', 'neo4j'),
+                'password': getattr(config.vector_store, 'neo4j_password', 'password'),
+                'index_name': getattr(config.vector_store, 'neo4j_index', 'vector-index'),
+            })
+        elif config.vector_store.type in ['lancedb', 'lance']:
+            vector_store_config.update({
+                'uri': getattr(config.vector_store, 'lancedb_uri', '/app/data/lancedb'),
+                'table_name': getattr(config.vector_store, 'lancedb_table', 'vectors'),
+            })
+
         vector_store = get_vector_store(config.vector_store.type, **vector_store_config)
         logger.info(f"Initialized vector store: {config.vector_store.type}")
         

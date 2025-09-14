@@ -11,19 +11,28 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+try:
+    import faiss
+except ImportError:
+    faiss = None
+
 class FAISSVectorStore(BaseVectorStore):
     """FAISS vector store implementation"""
     
     def initialize(self):
         """Initialize FAISS index"""
         try:
-            import faiss
-            
+            if faiss is None:
+                raise ImportError("Please install faiss: pip install faiss-cpu (or faiss-gpu for GPU support)")
+
             # Configuration
+            logger.info(f"FAISS config received: {self.config}")
             self.index_path = self.config.get('index_path', '/tmp/faiss_index')
             self.metadata_path = self.config.get('metadata_path', '/tmp/faiss_metadata.json')
             self.dimension = self.config.get('dimension', 768)
             self.index_type = self.config.get('index_type', 'IndexFlatIP')  # Inner Product (cosine for normalized vectors)
+            logger.info(f"FAISS paths - index: {self.index_path}, metadata: {self.metadata_path}, type: {self.index_type}")
+            logger.info(f"FAISS index file exists: {os.path.exists(self.index_path)}")
             
             # Initialize index
             if os.path.exists(self.index_path):
@@ -31,17 +40,17 @@ class FAISSVectorStore(BaseVectorStore):
                 self.index = faiss.read_index(self.index_path)
                 logger.info(f"Loaded existing FAISS index from {self.index_path}")
             else:
-                # Create new index
-                if self.index_type == 'IndexFlatIP':
+                # Create new index - support both full and short names
+                if self.index_type in ['IndexFlatIP', 'FlatIP']:
                     self.index = faiss.IndexFlatIP(self.dimension)
-                elif self.index_type == 'IndexFlatL2':
+                elif self.index_type in ['IndexFlatL2', 'FlatL2']:
                     self.index = faiss.IndexFlatL2(self.dimension)
-                elif self.index_type == 'IndexIVFFlat':
+                elif self.index_type in ['IndexIVFFlat', 'IVFFlat']:
                     # For larger datasets, use IVF (Inverted File Index)
                     nlist = self.config.get('nlist', 100)  # Number of clusters
                     quantizer = faiss.IndexFlatL2(self.dimension)
                     self.index = faiss.IndexIVFFlat(quantizer, self.dimension, nlist)
-                elif self.index_type == 'IndexHNSW':
+                elif self.index_type in ['IndexHNSW', 'HNSW']:
                     # Hierarchical Navigable Small World graphs
                     M = self.config.get('M', 64)  # Number of connections
                     self.index = faiss.IndexHNSWFlat(self.dimension, M)
@@ -71,16 +80,17 @@ class FAISSVectorStore(BaseVectorStore):
                 # For IVF indices, we need training data
                 # This should be done when we have enough vectors
                 pass
-                
-        except ImportError:
-            raise ImportError("Please install faiss: pip install faiss-cpu (or faiss-gpu for GPU support)")
+
+        except Exception as e:
+            logger.error(f"Error initializing FAISS: {e}")
+            raise
     
     def add(self, id: str, vector: List[float], payload: Dict[str, Any]):
         """Add vector to FAISS index"""
         try:
             # Convert to numpy array and normalize if using IndexFlatIP
             vector_np = np.array([vector], dtype=np.float32)
-            if self.index_type == 'IndexFlatIP':
+            if self.index_type in ['IndexFlatIP', 'FlatIP']:
                 # Normalize for cosine similarity
                 faiss.normalize_L2(vector_np)
             
@@ -105,48 +115,62 @@ class FAISSVectorStore(BaseVectorStore):
     def search(self, query_vector: List[float], limit: int = 5) -> List[VectorSearchResult]:
         """Search for similar vectors in FAISS"""
         try:
+            logger.info(f"FAISS search called with limit={limit}, index.ntotal={self.index.ntotal}")
             if self.index.ntotal == 0:
+                logger.warning("FAISS index is empty (ntotal=0)")
                 return []
-            
+
             # Convert query to numpy array and normalize if needed
             query_np = np.array([query_vector], dtype=np.float32)
-            if self.index_type == 'IndexFlatIP':
+            logger.info(f"Query vector shape: {query_np.shape}, index_type: {self.index_type}")
+            if self.index_type in ['IndexFlatIP', 'FlatIP']:
                 faiss.normalize_L2(query_np)
-            
+                logger.info("Normalized query vector for IndexFlatIP")
+
             # Search
-            scores, indices = self.index.search(query_np, min(limit, self.index.ntotal))
-            
+            search_limit = min(limit, self.index.ntotal)
+            logger.info(f"Searching FAISS index with limit={search_limit}")
+            scores, indices = self.index.search(query_np, search_limit)
+            logger.info(f"FAISS search returned {len(scores[0])} scores: {scores[0][:3]} and {len(indices[0])} indices: {indices[0][:3]}")
+
             results = []
             for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
+                logger.info(f"Processing result {i}: score={score}, idx={idx}")
                 if idx == -1:  # FAISS returns -1 for empty slots
+                    logger.info(f"Skipping empty slot at index {i}")
                     continue
-                
+
                 doc_id = self.index_to_id.get(str(idx))
+                logger.info(f"Found doc_id={doc_id} for idx={idx}")
                 if not doc_id:
+                    logger.warning(f"No doc_id found for index {idx}")
                     continue
-                
+
                 metadata = self.metadata.get(doc_id, {})
                 text = metadata.get('text', '')
-                
+                logger.info(f"Retrieved text length: {len(text)} for doc_id={doc_id}")
+
                 # Convert score based on index type
-                if self.index_type == 'IndexFlatIP':
+                if self.index_type in ['IndexFlatIP', 'FlatIP']:
                     # Inner product score (higher is better)
                     final_score = float(score)
-                elif self.index_type == 'IndexFlatL2':
+                elif self.index_type in ['IndexFlatL2', 'FlatL2']:
                     # L2 distance (lower is better), convert to similarity
                     final_score = 1.0 / (1.0 + float(score))
                 else:
                     final_score = float(score)
-                
+
+                logger.info(f"Final score: {final_score} (original: {score}) for doc_id={doc_id}")
                 results.append(VectorSearchResult(
                     id=doc_id,
                     text=text,
                     score=final_score,
                     metadata=metadata
                 ))
-            
+
             # Sort by score (descending)
             results.sort(key=lambda x: x.score, reverse=True)
+            logger.info(f"Returning {len(results)} search results")
             return results
             
         except Exception as e:
@@ -199,7 +223,7 @@ class FAISSVectorStore(BaseVectorStore):
             
             # Convert to numpy array
             vectors_np = np.array(vector_data, dtype=np.float32)
-            if self.index_type == 'IndexFlatIP':
+            if self.index_type in ['IndexFlatIP', 'FlatIP']:
                 faiss.normalize_L2(vectors_np)
             
             # Add all vectors at once
@@ -237,9 +261,9 @@ class FAISSVectorStore(BaseVectorStore):
         try:
             # Create new index
             old_index = self.index
-            if self.index_type == 'IndexFlatIP':
+            if self.index_type in ['IndexFlatIP', 'FlatIP']:
                 self.index = faiss.IndexFlatIP(self.dimension)
-            elif self.index_type == 'IndexFlatL2':
+            elif self.index_type in ['IndexFlatL2', 'FlatL2']:
                 self.index = faiss.IndexFlatL2(self.dimension)
             # Add other index types as needed
             

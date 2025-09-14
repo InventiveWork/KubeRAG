@@ -6,11 +6,11 @@ fullnameOverride: ""
 images:
   agent:
     repository: kuberag-agent
-    tag: "v1.0.1"
+    tag: "v1.0.11"
     pullPolicy: IfNotPresent
   pipeline:
     repository: kuberag-pipeline
-    tag: "v1.0.1"
+    tag: "v1.0.11"
     pullPolicy: IfNotPresent
 
 # LLM Configuration
