@@ -5,12 +5,12 @@ fullnameOverride: ""
 # Images
 images:
   agent:
-    repository: kuberag-universal-agent
-    tag: "latest"
+    repository: kuberag-agent
+    tag: "v1.0.1"
     pullPolicy: IfNotPresent
   pipeline:
-    repository: kuberag-universal-pipeline
-    tag: "latest"
+    repository: kuberag-pipeline
+    tag: "v1.0.1"
     pullPolicy: IfNotPresent
 
 # LLM Configuration
