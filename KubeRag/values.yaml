@@ -6,11 +6,11 @@ fullnameOverride: ""
 images:
   agent:
     repository: kuberag-agent
-    tag: "v1.0.15"
+    tag: "v1.0.17"
     pullPolicy: IfNotPresent
   pipeline:
     repository: kuberag-pipeline
-    tag: "v1.0.6"
+    tag: "v1.0.10"
     pullPolicy: IfNotPresent
 
 # LLM Configuration
@@ -61,6 +61,15 @@ vectorStore:
     host: "chromadb-service"
     port: 8000
     deploy: false  # Set to true to deploy ChromaDB instance
+
+  # FAISS Configuration
+  faiss:
+    host: "faiss-service"
+    port: 8080
+    indexPath: "/data/faiss_index"
+    metadataPath: "/data/faiss_metadata.pkl"
+    indexType: "FlatL2"
+    deploy: false  # Set to true to deploy FAISS instance
 
 # Embedding Configuration
 embedding:

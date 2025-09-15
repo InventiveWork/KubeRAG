@@ -63,6 +63,8 @@ data:
   VECTOR_STORE_CHROMA_PERSIST_DIR: "/nonexistent/readonly/path"
   VECTOR_STORE_CHROMA_PERSISTENT: "false"
   {{- else if eq (.Values.vectorStore.type | default "qdrant") "faiss" }}
+  VECTOR_STORE_FAISS_HOST: {{ .Values.vectorStore.faiss.host | default "faiss-service" | quote }}
+  VECTOR_STORE_FAISS_PORT: {{ .Values.vectorStore.faiss.port | default 8080 | quote }}
   VECTOR_STORE_FAISS_INDEX_PATH: {{ .Values.vectorStore.faiss.indexPath | default "/data/faiss_index" | quote }}
   VECTOR_STORE_FAISS_METADATA_PATH: {{ .Values.vectorStore.faiss.metadataPath | default "/data/faiss_metadata.pkl" | quote }}
   VECTOR_STORE_FAISS_INDEX_TYPE: {{ .Values.vectorStore.faiss.indexType | default "FlatL2" | quote }}
