@@ -5,8 +5,8 @@
 
 set -e
 
-# Configuration - Allow namespace to be set via environment variable
-NAMESPACE="${NAMESPACE:-kuberag}"
+# Configuration - Allow namespace to be set via command line argument or environment variable
+NAMESPACE="${1:-${NAMESPACE:-kuberag}}"
 TEST_FILE="test-upload.txt"
 TEST_CONTENT="This is a test document for KubeRAG. It contains information about artificial intelligence, machine learning, and natural language processing. The system should be able to retrieve this content and use it for augmented generation."
 
@@ -242,15 +242,24 @@ test_rag_chat() {
         if [ $? -eq 0 ]; then
             # Check if response contains meaningful content
             if echo "$RESPONSE" | grep -q "response\|message"; then
-                print_success "RAG query successful"
-                echo "Response preview: $(echo $RESPONSE | head -c 300)..."
+                # Check if response indicates no relevant documents were found
+                if echo "$RESPONSE" | grep -q "couldn't find any relevant documents\|knowledge base might be empty\|total_results.*:.*0"; then
+                    print_error "RAG query failed - no relevant documents found"
+                    echo "Response: $(echo $RESPONSE | head -c 300)..."
+                    print_error "This indicates the vector store index is not working properly"
+                    return 1
+                else
+                    print_success "RAG query successful"
+                    echo "Response preview: $(echo $RESPONSE | head -c 300)..."
 
-                # Check if context was retrieved
-                if echo "$RESPONSE" | grep -q "context\|sources"; then
-                    print_success "Context retrieved from vector store"
+                    # Check if context was retrieved
+                    if echo "$RESPONSE" | grep -q "context\|sources"; then
+                        print_success "Context retrieved from vector store"
+                    fi
                 fi
             elif echo "$RESPONSE" | grep -q "error"; then
                 print_error "Chat error: $RESPONSE"
+                return 1
             else
                 print_warning "Response received but might be empty"
                 echo "Full response: $RESPONSE"
@@ -369,7 +378,20 @@ main() {
     test_vector_stats
 
     # Test 3: RAG chat
-    test_rag_chat
+    if test_rag_chat; then
+        RAG_STATUS="✓"
+    else
+        RAG_STATUS="✗ (FAILED - documents not retrievable)"
+        print_error "RAG functionality failed - uploaded documents cannot be retrieved"
+        echo ""
+        echo "========================================"
+        print_error "Integration test FAILED!"
+        echo "========================================"
+        print_error "The system can upload documents but cannot retrieve them during chat."
+        print_error "This indicates an issue with the vector store index or retrieval mechanism."
+        cleanup
+        exit 1
+    fi
 
     echo ""
     echo "========================================"
@@ -385,7 +407,7 @@ main() {
     echo "  - Document upload tested"
     echo "  - Embedding tested"
     echo "  - Vector search tested"
-    echo "  - RAG chat tested"
+    echo "  - RAG chat tested: ${RAG_STATUS:-✓}"
     echo ""
 
     print_status "Note: Some tests may show warnings if certain endpoints are not available."
