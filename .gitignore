@@ -12,3 +12,4 @@ demo-*
 kuberag-ui
 kuberag-configurations
 kuberag-web-ui
+my-kuberag-values.yaml
