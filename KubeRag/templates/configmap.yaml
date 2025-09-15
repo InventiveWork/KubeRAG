@@ -58,11 +58,10 @@ data:
   VECTOR_STORE_NEO4J_DATABASE: {{ .Values.vectorStore.neo4j.database | default "neo4j" | quote }}
   VECTOR_STORE_NEO4J_INDEX_NAME: {{ .Values.vectorStore.neo4j.indexName | default "document_embeddings" | quote }}
   {{- else if eq (.Values.vectorStore.type | default "qdrant") "chroma" }}
-  VECTOR_STORE_CHROMA_PERSIST_DIR: {{ .Values.vectorStore.chroma.persistDirectory | default "/data/chroma" | quote }}
-  {{- if .Values.vectorStore.chroma.host }}
-  VECTOR_STORE_CHROMA_HOST: {{ .Values.vectorStore.chroma.host | quote }}
+  VECTOR_STORE_CHROMA_HOST: {{ .Values.vectorStore.chroma.host | default "chromadb-service" | quote }}
   VECTOR_STORE_CHROMA_PORT: {{ .Values.vectorStore.chroma.port | default 8000 | quote }}
-  {{- end }}
+  VECTOR_STORE_CHROMA_PERSIST_DIR: "/nonexistent/readonly/path"
+  VECTOR_STORE_CHROMA_PERSISTENT: "false"
   {{- else if eq (.Values.vectorStore.type | default "qdrant") "faiss" }}
   VECTOR_STORE_FAISS_INDEX_PATH: {{ .Values.vectorStore.faiss.indexPath | default "/data/faiss_index" | quote }}
   VECTOR_STORE_FAISS_METADATA_PATH: {{ .Values.vectorStore.faiss.metadataPath | default "/data/faiss_metadata.pkl" | quote }}

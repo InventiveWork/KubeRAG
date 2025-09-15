@@ -99,7 +99,8 @@ def initialize_services():
         elif config.vector_store.type in ['chroma']:
             vector_store_config.update({
                 'collection_name': config.vector_store.collection_name,
-                'persist_directory': '/app/data/chroma',
+                'host': os.getenv('VECTOR_STORE_CHROMA_HOST', 'localhost'),
+                'port': int(os.getenv('VECTOR_STORE_CHROMA_PORT', '8000')),
             })
         elif config.vector_store.type in ['postgresql', 'pgvector']:
             vector_store_config.update({
@@ -132,6 +133,7 @@ def initialize_services():
             })
 
         vector_store = get_vector_store(config.vector_store.type, **vector_store_config)
+        vector_store.initialize()
         logger.info(f"Initialized vector store: {config.vector_store.type}")
         
         # Initialize embedder - try to connect to pipeline service for consistency

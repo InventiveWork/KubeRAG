@@ -25,14 +25,23 @@ class ChromaVectorStore(BaseVectorStore):
             self.port = self.config.get('port', 8000)
             
             # Initialize client based on configuration
+            logger.info(f"ChromaDB config: host={self.host}, port={self.port}, in_memory={self.config.get('in_memory', False)}, persistent={self.config.get('persistent', True)}")
+
             if self.config.get('in_memory', False):
                 # In-memory database
+                logger.info("Using in-memory ChromaDB client")
                 self.client = chromadb.Client()
+            elif self.host and self.host not in ['localhost', '127.0.0.1'] and self.port:
+                # Remote ChromaDB server
+                logger.info(f"Connecting to remote ChromaDB at {self.host}:{self.port}")
+                self.client = chromadb.HttpClient(host=self.host, port=self.port)
             elif self.config.get('persistent', True):
                 # Persistent local database
+                logger.info(f"Using persistent ChromaDB client at {self.persist_directory}")
                 self.client = chromadb.PersistentClient(path=self.persist_directory)
             else:
                 # Remote ChromaDB server
+                logger.info(f"Using remote ChromaDB client at {self.host}:{self.port}")
                 self.client = chromadb.HttpClient(host=self.host, port=self.port)
             
             # Get or create collection
@@ -75,9 +84,20 @@ class ChromaVectorStore(BaseVectorStore):
     def search(self, query_vector: List[float], limit: int = 5) -> List[VectorSearchResult]:
         """Search for similar vectors in ChromaDB"""
         try:
+            # Handle ChromaDB HNSW index error by checking collection size first
+            try:
+                # Get collection count to ensure it's initialized
+                count = self.collection.count()
+                if count == 0:
+                    logger.warning("ChromaDB collection is empty")
+                    return []
+            except Exception as e:
+                logger.warning(f"ChromaDB collection check failed: {e}")
+                return []
+
             results = self.collection.query(
                 query_embeddings=[query_vector],
-                n_results=limit,
+                n_results=min(limit, count) if count > 0 else 1,
                 include=['documents', 'metadatas', 'distances']
             )
             
@@ -105,8 +125,13 @@ class ChromaVectorStore(BaseVectorStore):
                     ))
             
             return search_results
-            
+
         except Exception as e:
+            error_msg = str(e)
+            # Handle the specific HNSW error
+            if "hnsw segment reader" in error_msg.lower() or "nothing found on disk" in error_msg.lower():
+                logger.warning(f"ChromaDB HNSW index error, returning empty results: {e}")
+                return []
             logger.error(f"Error searching in ChromaDB: {e}")
             raise
     

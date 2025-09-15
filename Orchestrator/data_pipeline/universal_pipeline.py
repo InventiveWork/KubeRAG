@@ -53,11 +53,21 @@ except Exception as e:
 # Initialize vector store
 vector_store = None
 try:
+    logger.info(f"Creating vector store config for type: {VECTOR_STORE_TYPE}")
     config = VectorStoreConfigFactory.from_env(VECTOR_STORE_TYPE)
-    vector_store = get_vector_store(VECTOR_STORE_TYPE, **config.to_dict())
-    logger.info(f"Vector store {VECTOR_STORE_TYPE} initialized")
+    logger.info(f"Config created successfully")
+    config_dict = config.to_dict()
+    logger.info(f"Vector store config: {config_dict}")
+    logger.info(f"Creating vector store instance...")
+    vector_store = get_vector_store(VECTOR_STORE_TYPE, **config_dict)
+    logger.info(f"Vector store instance created, calling initialize...")
+    vector_store.initialize()
+    logger.info(f"Vector store {VECTOR_STORE_TYPE} initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize vector store: {e}")
+    import traceback
+    logger.error(f"Full traceback: {traceback.format_exc()}")
+    vector_store = None
 
 class DocumentRequest(BaseModel):
     text: str

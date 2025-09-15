@@ -6,11 +6,11 @@ fullnameOverride: ""
 images:
   agent:
     repository: kuberag-agent
-    tag: "v1.0.11"
+    tag: "v1.0.15"
     pullPolicy: IfNotPresent
   pipeline:
     repository: kuberag-pipeline
-    tag: "v1.0.11"
+    tag: "v1.0.6"
     pullPolicy: IfNotPresent
 
 # LLM Configuration
@@ -45,7 +45,7 @@ vectorStore:
     indexName: "vector_index"
     deploy: false  # Set to true to deploy MongoDB instance
 
-  # Qdrant Configuration  
+  # Qdrant Configuration
   qdrant:
     host: "qdrant-service"
     port: 6333
@@ -55,6 +55,12 @@ vectorStore:
     apiKey: ""  # Set via secret
     timeout: 5.0
     deploy: true  # Deploy Qdrant instance
+
+  # ChromaDB Configuration
+  chroma:
+    host: "chromadb-service"
+    port: 8000
+    deploy: false  # Set to true to deploy ChromaDB instance
 
 # Embedding Configuration
 embedding:
