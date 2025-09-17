@@ -5,11 +5,11 @@ fullnameOverride: ""
 # Images
 images:
   agent:
-    repository: kuberag-agent
+    repository: inventivework/kuberag-agent
     tag: "latest"
     pullPolicy: IfNotPresent
   pipeline:
-    repository: kuberag-pipeline
+    repository: inventivework/kuberag-pipeline
     tag: "latest"
     pullPolicy: IfNotPresent
 
