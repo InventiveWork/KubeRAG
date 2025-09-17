@@ -1,0 +1,66 @@
+{{- if .Values.vectorStore.qdrant.deploy }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-qdrant
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: qdrant
+        image: {{ .Values.vectorStore.qdrant.image | default "qdrant/qdrant:latest" }}
+        ports:
+        - containerPort: 6333 # gRPC port
+        - containerPort: 6332 # HTTP port
+        volumeMounts:
+        - name: qdrant-data
+          mountPath: /qdrant/storage
+      volumes:
+      - name: qdrant-data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-qdrant-pvc #Referencing a PVC
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-qdrant-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  ports:
+  - name: grpc
+    port: 6333
+    targetPort: 6333
+  - name: http
+    port: 6332
+    targetPort: 6332
+  selector:
+    app: qdrant
+  type: ClusterIP # Or NodePort, LoadBalancer depending on your needs
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-qdrant-pvc
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce #Or ReadWriteMany if needed
+  resources:
+    requests:
+      storage: 10Gi # Adjust storage size as needed.
+{{- end }}

@@ -1,0 +1,15 @@
+__init__.py
+__init__.pyi
+name_to_*
+conv_*
+.venv
+*.pyc
+.env
+.DS_Store
+node_modules
+demo-ui/node_modules
+demo-*
+kuberag-ui
+kuberag-configurations
+kuberag-web-ui
+my-kuberag-values.yaml

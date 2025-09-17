@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kuberag-gemini-config
+  namespace: kuberag-gemini
+data:
+  # LLM Configuration
+  LLM_PROVIDER: "gemini"
+  AZURE_OPENAI_DEPLOYMENT: "gpt-4o-mini"
+  AZURE_OPENAI_ENDPOINT: "https://doge-v2.cognitiveservices.azure.com"
+  AZURE_API_VERSION: "2025-01-01-preview"
+
+  # Vector Store Configuration
+  VECTOR_STORE_TYPE: "qdrant"
+  VECTOR_STORE_DIMENSION: "384"
+  VECTOR_STORE_COLLECTION: "documents"
+  QDRANT_HOST: "qdrant-service"
+  QDRANT_PORT: "6333"
+  QDRANT_GRPC_PORT: "6334"
+  QDRANT_PREFER_GRPC: "false"
+  QDRANT_HTTPS: "false"
+  QDRANT_TIMEOUT: "5"
+
+  # Embedding Configuration
+  EMBEDDING_PROVIDER: "sentence_transformers"
+  EMBEDDING_MODEL: "all-MiniLM-L6-v2"
+
+  # Pipeline Service Configuration (FIX)
+  PIPELINE_SERVICE_URL: "http://kuberag-gemini-pipeline-service/api/embed/text"
+  DATA_PIPELINE_URL: "http://kuberag-gemini-pipeline-service:80"
+
+  # Text Processing Configuration
+  CHUNK_SIZE: "500"
+  CHUNK_OVERLAP: "50"
+  CHUNK_METHOD: "words"
+
+  # Service Configuration (for container ports)
+  SERVICE_PORT_AGENT: "8082"
+  SERVICE_PORT_PIPELINE: "8001"
+
+  # Cache Configuration
+  TRANSFORMERS_CACHE: "/home/nonroot/.cache/huggingface"
+  HUGGINGFACE_HUB_CACHE: "/home/nonroot/.cache/huggingface"

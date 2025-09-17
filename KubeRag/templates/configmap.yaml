@@ -1,24 +1,99 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-cm
-  namespace: {{ .Release.Name }}
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Release.Namespace }}
   labels:
+    app.kubernetes.io/name: kuberag
     app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: 'Helm'
-    meta.helm.sh/release-namespace: 'default'
+    app.kubernetes.io/managed-by: Helm
 data:
-  AZURE_ENDPOINT: {{ .Values.AZURE_ENDPOINT }}
-  AZURE_API_VERSION: {{ .Values.AZURE_API_VERSION }}
-  AZURE_ENDPOINT_EMBED: {{ .Values.AZURE_ENDPOINT_EMBED }}
-  AZURE_ENDPOINT_VERSION_EMBED: {{ .Values.AZURE_ENDPOINT_VERSION_EMBED }}
-  AZURE_LLM_MODEL: {{ .Values.AZURE_LLM_MODEL }}
-  AZURE_LLM_MODEL_EMBED: {{ .Values.AZURE_LLM_MODEL_EMBED }}
-  AZURE_LLM_MODEL_DEPLOYMENT: {{ .Values.AZURE_LLM_MODEL_DEPLOYMENT }}
-  AZURE_LLM_MODEL_EMBED_DEPLOYMENT: {{ .Values.AZURE_LLM_MODEL_EMBED_DEPLOYMENT }}
-  LLM_FRAMEWORK: {{ .Values.LLM_FRAMEWORK }}
-  DATABASE_ENGINE: {{ .Values.DATABASE_ENGINE }}
-  MONGODB_NAME: {{ .Values.MONGODB_NAME }}
-  MONGODB_COLLECTION: {{ .Values.MONGODB_COLLECTION }}
-  MONGODB_VECTOR_INDEX: {{ .Values.MONGODB_VECTOR_INDEX }}
-  HUGGINGFACE_MODEL:  {{ .Values.HUGGINGFACE_MODEL }}
+  # LLM Configuration
+  LLM_PROVIDER: {{ .Values.llm.provider | default "openai" | quote }}
+  {{- if eq (.Values.llm.provider | default "openai") "openai" }}
+  OPENAI_MODEL: {{ .Values.llm.openai.model | default "gpt-3.5-turbo" | quote }}
+  {{- if .Values.llm.openai.baseUrl }}
+  OPENAI_BASE_URL: {{ .Values.llm.openai.baseUrl | quote }}
+  {{- end }}
+  {{- else if eq (.Values.llm.provider | default "openai") "azure_openai" }}
+  AZURE_OPENAI_DEPLOYMENT: {{ .Values.llm.azureOpenai.deployment | default "gpt-35-turbo" | quote }}
+  AZURE_OPENAI_ENDPOINT: {{ .Values.llm.azureOpenai.endpoint | quote }}
+  AZURE_API_VERSION: {{ .Values.llm.azureOpenai.apiVersion | default "2025-01-01-preview" | quote }}
+  {{- end }}
+
+  # Vector Store Configuration
+  VECTOR_STORE_TYPE: {{ .Values.vectorStore.type | default "qdrant" | quote }}
+  VECTOR_STORE_DIMENSION: {{ .Values.vectorStore.dimension | default 768 | quote }}
+  VECTOR_STORE_COLLECTION_NAME: {{ .Values.vectorStore.collectionName | default "documents" | quote }}
+
+  {{- if eq (.Values.vectorStore.type | default "qdrant") "qdrant" }}
+  QDRANT_HOST: {{ .Values.vectorStore.qdrant.host | default (printf "%s-qdrant-service" .Release.Name) | quote }}
+  QDRANT_PORT: {{ .Values.vectorStore.qdrant.port | default 6333 | quote }}
+  QDRANT_GRPC_PORT: {{ .Values.vectorStore.qdrant.grpcPort | default 6334 | quote }}
+  QDRANT_PREFER_GRPC: {{ .Values.vectorStore.qdrant.preferGrpc | default false | quote }}
+  QDRANT_HTTPS: {{ .Values.vectorStore.qdrant.https | default false | quote }}
+  QDRANT_TIMEOUT: {{ .Values.vectorStore.qdrant.timeout | default 5.0 | quote }}
+  {{- else if eq (.Values.vectorStore.type | default "qdrant") "mongodb" }}
+  VECTOR_STORE_MONGODB_HOST: {{ .Values.vectorStore.mongodb.host | default "mongodb-service" | quote }}
+  VECTOR_STORE_MONGODB_PORT: {{ .Values.vectorStore.mongodb.port | default 27017 | quote }}
+  VECTOR_STORE_MONGODB_DATABASE: {{ .Values.vectorStore.mongodb.database | default "vectordb" | quote }}
+  VECTOR_STORE_MONGODB_USERNAME: {{ .Values.vectorStore.mongodb.username | default "kuberag" | quote }}
+  VECTOR_STORE_MONGODB_INDEX_NAME: {{ .Values.vectorStore.mongodb.indexName | default "vector_index" | quote }}
+  {{- else if eq (.Values.vectorStore.type | default "qdrant") "postgresql" }}
+  VECTOR_STORE_POSTGRESQL_HOST: {{ .Values.vectorStore.postgresql.host | default "postgresql-service" | quote }}
+  VECTOR_STORE_POSTGRESQL_PORT: {{ .Values.vectorStore.postgresql.port | default 5432 | quote }}
+  VECTOR_STORE_POSTGRESQL_DATABASE: {{ .Values.vectorStore.postgresql.database | default "vectordb" | quote }}
+  VECTOR_STORE_POSTGRESQL_USERNAME: {{ .Values.vectorStore.postgresql.username | default "kuberag" | quote }}
+  VECTOR_STORE_POSTGRESQL_TABLE_NAME: {{ .Values.vectorStore.postgresql.tableName | default "documents" | quote }}
+  {{- else if eq (.Values.vectorStore.type | default "qdrant") "elasticsearch" }}
+  VECTOR_STORE_ELASTICSEARCH_HOST: {{ .Values.vectorStore.elasticsearch.host | default "elasticsearch-service" | quote }}
+  VECTOR_STORE_ELASTICSEARCH_PORT: {{ .Values.vectorStore.elasticsearch.port | default 9200 | quote }}
+  VECTOR_STORE_ELASTICSEARCH_INDEX_NAME: {{ .Values.vectorStore.elasticsearch.indexName | default "documents" | quote }}
+  VECTOR_STORE_ELASTICSEARCH_USERNAME: {{ .Values.vectorStore.elasticsearch.username | default "elastic" | quote }}
+  VECTOR_STORE_ELASTICSEARCH_USE_SSL: {{ .Values.vectorStore.elasticsearch.useSSL | default false | quote }}
+  VECTOR_STORE_ELASTICSEARCH_VERIFY_CERTS: {{ .Values.vectorStore.elasticsearch.verifyCerts | default false | quote }}
+  {{- else if eq (.Values.vectorStore.type | default "qdrant") "neo4j" }}
+  VECTOR_STORE_NEO4J_URI: {{ .Values.vectorStore.neo4j.uri | default "bolt://neo4j-service:7687" | quote }}
+  VECTOR_STORE_NEO4J_USERNAME: {{ .Values.vectorStore.neo4j.username | default "neo4j" | quote }}
+  VECTOR_STORE_NEO4J_DATABASE: {{ .Values.vectorStore.neo4j.database | default "neo4j" | quote }}
+  VECTOR_STORE_NEO4J_INDEX_NAME: {{ .Values.vectorStore.neo4j.indexName | default "document_embeddings" | quote }}
+  {{- else if eq (.Values.vectorStore.type | default "qdrant") "chroma" }}
+  VECTOR_STORE_CHROMA_HOST: {{ .Values.vectorStore.chroma.host | default (printf "%s-chromadb-service" .Release.Name) | quote }}
+  VECTOR_STORE_CHROMA_PORT: {{ .Values.vectorStore.chroma.port | default 8000 | quote }}
+  VECTOR_STORE_CHROMA_PERSIST_DIR: "/nonexistent/readonly/path"
+  VECTOR_STORE_CHROMA_PERSISTENT: "false"
+  {{- else if eq (.Values.vectorStore.type | default "qdrant") "faiss" }}
+  VECTOR_STORE_FAISS_HOST: {{ .Values.vectorStore.faiss.host | default (printf "%s-faiss-service" .Release.Name) | quote }}
+  VECTOR_STORE_FAISS_PORT: {{ .Values.vectorStore.faiss.port | default 8080 | quote }}
+  VECTOR_STORE_FAISS_INDEX_PATH: {{ .Values.vectorStore.faiss.indexPath | default "/data/faiss_index" | quote }}
+  VECTOR_STORE_FAISS_METADATA_PATH: {{ .Values.vectorStore.faiss.metadataPath | default "/data/faiss_metadata.pkl" | quote }}
+  VECTOR_STORE_FAISS_INDEX_TYPE: {{ .Values.vectorStore.faiss.indexType | default "FlatL2" | quote }}
+  {{- else if eq (.Values.vectorStore.type | default "qdrant") "lancedb" }}
+  VECTOR_STORE_LANCEDB_URI: {{ .Values.vectorStore.lancedb.uri | default "/data/lancedb" | quote }}
+  VECTOR_STORE_LANCEDB_TABLE_NAME: {{ .Values.vectorStore.lancedb.tableName | default "documents" | quote }}
+  VECTOR_STORE_LANCEDB_METRIC: {{ .Values.vectorStore.lancedb.metric | default "cosine" | quote }}
+  VECTOR_STORE_LANCEDB_HOST: {{ .Values.vectorStore.lancedb.host | default (printf "%s-lancedb-service" .Release.Name) | quote }}
+  VECTOR_STORE_LANCEDB_PORT: {{ .Values.vectorStore.lancedb.port | default 8080 | quote }}
+  {{- end }}
+
+  # Embedding Configuration
+  EMBEDDING_PROVIDER: "sentence_transformers"
+  EMBEDDING_MODEL: {{ .Values.embedding.model | default "all-MiniLM-L12-v2" | quote }}
+
+  # Text Processing Configuration
+  CHUNK_SIZE: {{ .Values.textProcessing.chunkSize | default 500 | quote }}
+  CHUNK_OVERLAP: {{ .Values.textProcessing.chunkOverlap | default 50 | quote }}
+  CHUNK_METHOD: {{ .Values.textProcessing.method | default "words" | quote }}
+
+  # Service Configuration (for container ports)
+  SERVICE_PORT_AGENT: {{ .Values.service.agent.targetPort | default 8000 | quote }}
+  SERVICE_PORT_PIPELINE: {{ .Values.service.pipeline.targetPort | default 8001 | quote }}
+
+  # Pipeline Service URL (dynamic based on release name)
+  PIPELINE_SERVICE_URL: "http://{{ .Release.Name }}-pipeline-service/api/embed/text"
+  NAMESPACE: {{ .Release.Namespace | quote }}
+  HELM_RELEASE_NAME: {{ .Release.Name | quote }}
+
+  # Cache Configuration
+  TRANSFORMERS_CACHE: "/home/nonroot/.cache/huggingface"
+  HUGGINGFACE_HUB_CACHE: "/home/nonroot/.cache/huggingface"

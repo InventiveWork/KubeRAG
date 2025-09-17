@@ -1,0 +1,95 @@
+# KubeRAG with Qdrant Vector Store
+# High-performance dedicated vector database
+
+llm:
+  provider: "openai"
+  openai:
+    model: "gpt-3.5-turbo"
+    apiKey: ""  # Set via secret or external secret manager
+
+images:
+  agent:
+    repository: "kuberag-universal-agent"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  pipeline:
+    repository: "kuberag-universal-pipeline"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+vectorStore:
+  type: "qdrant"
+  dimension: 768
+  collectionName: "documents"
+  qdrant:
+    host: "qdrant-service"
+    port: 6333
+    grpcPort: 6334
+    preferGrpc: false
+    https: false
+    apiKey: ""  # Optional for cloud Qdrant
+    timeout: 5.0
+    deploy: true  # Deploy Qdrant instance
+
+embedding:
+  model: "all-MiniLM-L6-v2"
+
+textProcessing:
+  chunkSize: 500
+  chunkOverlap: 50
+  method: "words"
+
+deployment:
+  agent:
+    replicas: 2
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+  pipeline:
+    replicas: 1
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+service:
+  type: "NodePort"
+  agent:
+    port: 80
+    targetPort: 8000
+    nodePort: 30000  # Qdrant: 30000-30009
+  pipeline:
+    port: 80
+    targetPort: 8001
+    nodePort: 30001
+
+ingress:
+  enabled: false
+  className: "nginx"
+  host: "kuberag-qdrant.local"
+
+persistence:
+  enabled: true
+  storageClass: "standard"
+  accessMode: "ReadWriteOnce"
+  size: "10Gi"
+
+security:
+  podSecurityContext:
+    fsGroup: 2000
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70

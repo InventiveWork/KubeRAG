@@ -1,0 +1,69 @@
+# KubeRAG ChromaDB Configuration
+# Corrected structure to match Helm chart expectations
+
+# LLM Configuration - using the structure from default values.yaml
+llm:
+  provider: "gemini"
+  gemini:
+    apiKey: ""
+    model: "gemini-1.5-flash"
+
+# Vector Store Configuration - using the structure from default values.yaml
+vectorStore:
+  type: "chroma"
+  dimension: 384
+  collectionName: "documents"
+  chroma:
+    persistDirectory: "/data/chroma"
+    host: ""  # Empty for embedded mode
+    port: 8000
+
+# Embedding Configuration
+embedding:
+  model: "all-MiniLM-L6-v2"
+
+# Text Processing Configuration
+textProcessing:
+  chunkSize: 500
+  chunkOverlap: 50
+  method: "words"
+
+# Service Configuration
+service:
+  type: "NodePort"
+  agent:
+    port: 80
+    targetPort: 8082
+    nodePort: 31390
+  pipeline:
+    port: 80
+    targetPort: 8001
+    nodePort: 31095
+
+# Deployment Configuration
+deployment:
+  agent:
+    replicas: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+  pipeline:
+    replicas: 1
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+# Persistence Configuration
+persistence:
+  enabled: true
+  storageClass: "standard"
+  accessMode: "ReadWriteOnce"
+  size: "10Gi"

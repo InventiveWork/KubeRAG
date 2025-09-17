@@ -1,0 +1,86 @@
+{{- if .Values.vectorStore.faiss.deploy }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-faiss-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: faiss-server
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faiss-server
+  template:
+    metadata:
+      labels:
+        app: faiss-server
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: faiss-server
+        image: {{ .Values.vectorStore.faiss.image | default "kuberag-faiss-server:latest" }}
+        imagePullPolicy: {{ .Values.vectorStore.faiss.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: FAISS_INDEX_PATH
+          value: "/data/faiss_index"
+        - name: FAISS_METADATA_PATH
+          value: "/data/faiss_metadata.pkl"
+        volumeMounts:
+        - name: faiss-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: faiss-data
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-faiss-pvc
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+---
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-faiss-pvc
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | default "10Gi" }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-faiss-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: faiss-server
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: faiss-server
+{{- end }}

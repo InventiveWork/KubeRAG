@@ -1,17 +1,21 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-data-pipeline-service
-  namespace: {{ .Release.Name }}
+  name: {{ .Release.Name }}-pipeline-service
+  namespace: {{ .Release.Namespace }}
   labels:
+    app.kubernetes.io/name: kuberag-pipeline
     app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: 'Helm'
-    meta.helm.sh/release-namespace: 'default'
+    app.kubernetes.io/managed-by: Helm
 spec:
   selector:
-    app: kuberag
+    app.kubernetes.io/name: kuberag-pipeline
+    app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
   - protocol: TCP
-    port: 80
-    targetPort: 5001
-  type: LoadBalancer  # Or NodePort, ClusterIP
+    port: {{ .Values.service.pipeline.port }}
+    targetPort: {{ .Values.service.pipeline.targetPort }}
+    {{- if and (eq .Values.service.type "NodePort") (.Values.service.pipeline.nodePort) }}
+    nodePort: {{ .Values.service.pipeline.nodePort }}
+    {{- end }}
+  type: {{ .Values.service.type }}
