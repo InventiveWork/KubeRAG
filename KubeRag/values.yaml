@@ -6,11 +6,11 @@ fullnameOverride: ""
 images:
   agent:
     repository: kuberag-agent
-    tag: "v1.0.17"
+    tag: "latest"
     pullPolicy: IfNotPresent
   pipeline:
     repository: kuberag-pipeline
-    tag: "v1.0.10"
+    tag: "latest"
     pullPolicy: IfNotPresent
 
 # LLM Configuration
@@ -47,7 +47,8 @@ vectorStore:
 
   # Qdrant Configuration
   qdrant:
-    host: "qdrant-service"
+    image: "qdrant/qdrant:latest"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false
@@ -58,18 +59,32 @@ vectorStore:
 
   # ChromaDB Configuration
   chroma:
-    host: "chromadb-service"
+    image: "chromadb/chroma:latest"
+    host: ""
     port: 8000
     deploy: false  # Set to true to deploy ChromaDB instance
 
   # FAISS Configuration
   faiss:
-    host: "faiss-service"
+    image: "kuberag-faiss-server:latest"
+    pullPolicy: IfNotPresent
+    host: ""
     port: 8080
     indexPath: "/data/faiss_index"
     metadataPath: "/data/faiss_metadata.pkl"
     indexType: "FlatL2"
     deploy: false  # Set to true to deploy FAISS instance
+
+  # LanceDB Configuration
+  lancedb:
+    image: "kuberag-lancedb-server:latest"
+    pullPolicy: IfNotPresent
+    uri: "/data/lancedb"
+    host: ""
+    port: 8080
+    tableName: "documents"
+    metric: "cosine"
+    deploy: false  # Set to true to deploy LanceDB instance
 
 # Embedding Configuration
 embedding:

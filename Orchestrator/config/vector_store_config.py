@@ -1,8 +1,22 @@
 from typing import Dict, Any, Optional
 import os
 import json
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+
+def _infer_embedding_dimension() -> int:
+    """Infer embedding dimension from environment to keep stores consistent."""
+    model_name = os.getenv("EMBEDDING_MODEL", "")
+    model_lower = model_name.lower()
+
+    if "minilm" in model_lower or "e5-small" in model_lower:
+        return 384
+
+    return 768
 
 class VectorStoreType(Enum):
     QDRANT = "qdrant"
@@ -222,6 +236,8 @@ class LanceDBConfig(BaseVectorStoreConfig):
     uri: str = "./lancedb"
     table_name: str = "documents"
     metric: str = "cosine"  # cosine, l2, dot
+    host: Optional[str] = None
+    port: int = 8080
     
     def __post_init__(self):
         self.store_type = "lancedb"
@@ -231,7 +247,9 @@ class LanceDBConfig(BaseVectorStoreConfig):
         base.update({
             'uri': self.uri,
             'table_name': self.table_name,
-            'metric': self.metric
+            'metric': self.metric,
+            'host': self.host,
+            'port': self.port,
         })
         return base
 
@@ -267,13 +285,37 @@ class VectorStoreConfigFactory:
         kwargs = {}
         
         # Common environment variables
-        kwargs['dimension'] = int(os.getenv(f"{prefix}DIMENSION", "768"))
-        kwargs['collection_name'] = os.getenv(f"{prefix}COLLECTION_NAME", "documents")
+        dimension_env = os.getenv(f"{prefix}DIMENSION") or os.getenv("VECTOR_STORE_DIMENSION")
+        kwargs['dimension'] = _infer_embedding_dimension()
+        if dimension_env:
+            try:
+                configured_dimension = int(dimension_env)
+                if configured_dimension != kwargs['dimension']:
+                    logger.warning(
+                        "%sDIMENSION=%s does not match embedding dimension %s. "
+                        "Overriding to embedding dimension.",
+                        prefix,
+                        configured_dimension,
+                        kwargs['dimension'],
+                    )
+                else:
+                    kwargs['dimension'] = configured_dimension
+            except ValueError:
+                logger.warning(
+                    "Invalid %sDIMENSION value '%s'. Using embedding dimension %s instead.",
+                    prefix,
+                    dimension_env,
+                    kwargs['dimension'],
+                )
+        collection_env = os.getenv(f"{prefix}COLLECTION_NAME")
+        kwargs['collection_name'] = collection_env or "documents"
         
         # Store-specific environment variables
         if store_type == 'qdrant':
+            release_name = os.getenv("HELM_RELEASE_NAME")
+            default_host = os.getenv("QDRANT_HOST") or (f"{release_name}-qdrant-service" if release_name else "localhost")
             kwargs.update({
-                'host': os.getenv("QDRANT_HOST", "localhost"),
+                'host': default_host,
                 'port': int(os.getenv("QDRANT_PORT", "6333")),
                 'grpc_port': int(os.getenv("QDRANT_GRPC_PORT", "6334")),
                 'prefer_grpc': os.getenv("QDRANT_PREFER_GRPC", "false").lower() == "true",
@@ -321,15 +363,26 @@ class VectorStoreConfigFactory:
                 'metadata_path': os.getenv(f"{prefix}FAISS_METADATA_PATH", "./faiss_metadata.pkl")
             })
         elif store_type == 'chroma':
+            release_name = os.getenv("HELM_RELEASE_NAME")
+            host_env = os.getenv(f"{prefix}CHROMA_HOST")
+            default_host = host_env or (f"{release_name}-chromadb-service" if release_name else None)
+
             kwargs.update({
                 'persist_directory': os.getenv(f"{prefix}CHROMA_PERSIST_DIR", "./chroma_db"),
-                'host': os.getenv(f"{prefix}CHROMA_HOST"),
+                'host': default_host,
                 'port': int(os.getenv(f"{prefix}CHROMA_PORT", "8000")) if os.getenv(f"{prefix}CHROMA_PORT") else None
             })
         elif store_type == 'lancedb':
+            release_name = os.getenv("HELM_RELEASE_NAME")
+            host_env = os.getenv(f"{prefix}LANCEDB_HOST")
+            default_host = host_env or (f"{release_name}-lancedb-service" if release_name else None)
+
             kwargs.update({
                 'uri': os.getenv(f"{prefix}LANCEDB_URI", "./lancedb"),
-                'metric': os.getenv(f"{prefix}LANCEDB_METRIC", "cosine")
+                'host': default_host,
+                'port': int(os.getenv(f"{prefix}LANCEDB_PORT", "8080")),
+                'metric': os.getenv(f"{prefix}LANCEDB_METRIC", "cosine"),
+                'table_name': os.getenv(f"{prefix}LANCEDB_TABLE_NAME", "documents"),
             })
         
         return cls.create_config(store_type, **kwargs)

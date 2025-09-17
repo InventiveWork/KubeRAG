@@ -1,273 +1,334 @@
-import lancedb
-import pandas as pd
-import numpy as np
-from typing import List, Dict, Any, Optional
-from .base import BaseVectorStore, VectorSearchResult
+"""LanceDB vector store implementation supporting embedded and remote modes."""
+
+from __future__ import annotations
+
+import json
 import logging
 import os
 import tempfile
 import uuid
+from dataclasses import dataclass
+from typing import Any, Dict, List
+
+import httpx
+
+from .base import BaseVectorStore, VectorSearchResult
 
 logger = logging.getLogger(__name__)
 
+
+@dataclass
+class RemoteResponse:
+    status: int
+    json: Dict[str, Any]
+
+
 class LanceDBVectorStore(BaseVectorStore):
-    """LanceDB implementation"""
-    
+    """LanceDB implementation.
+
+    When `host` is provided in the configuration a remote LanceDB service is
+    used. Otherwise, the store operates in embedded mode using the local
+    LanceDB Python library.
+    """
+
     def __init__(self, **kwargs):
-        self.uri = kwargs.get('uri', tempfile.mkdtemp())  # Default to temp directory
-        self.table_name = kwargs.get('table_name', 'documents')
-        self.dimension = kwargs.get('dimension', 768)
-        self.metric = kwargs.get('metric', 'cosine')
-        
+        self.uri = kwargs.get("uri", tempfile.mkdtemp())
+        self.table_name = kwargs.get("table_name", "documents")
+        self.dimension = kwargs.get("dimension", 768)
+        self.metric = kwargs.get("metric", "cosine")
+        self.host = kwargs.get("host")
+        self.port = int(kwargs.get("port", 8080))
+
+        self.use_remote = bool(self.host)
         self.db = None
         self.table = None
+        self.base_url = None
+
         super().__init__(**kwargs)
-    
+
     def initialize(self):
-        """Initialize LanceDB connection"""
+        """Initialise LanceDB connection."""
         try:
-            # Connect to LanceDB
+            if self.use_remote and not self.host:
+                release_name = os.getenv("HELM_RELEASE_NAME")
+                if release_name:
+                    self.host = f"{release_name}-lancedb-service"
+                else:
+                    self.use_remote = False
+
+            if self.use_remote:
+                scheme = "http"
+                self.base_url = f"{scheme}://{self.host}:{self.port}"
+                health_url = f"{self.base_url}/health"
+                with httpx.Client(timeout=5) as client:
+                    response = client.get(health_url)
+                    response.raise_for_status()
+                logger.info(
+                    "Connected to remote LanceDB (%s) table=%s",
+                    self.base_url,
+                    self.table_name,
+                )
+                return
+
+            import lancedb  # Local import so containers without lancedb can still run remote mode
+
             self.db = lancedb.connect(self.uri)
-            
-            # Try to open existing table or create new one
             try:
                 self.table = self.db.open_table(self.table_name)
-                logger.info(f"Opened existing LanceDB table: {self.table_name}")
+                logger.info("Opened existing LanceDB table: %s", self.table_name)
             except Exception:
-                # Create new table with schema
                 self._create_table()
-                logger.info(f"Created new LanceDB table: {self.table_name}")
-            
-            logger.info("LanceDB vector store initialized")
-        except Exception as e:
-            logger.error(f"Failed to initialize LanceDB vector store: {e}")
+                logger.info("Created new LanceDB table: %s", self.table_name)
+
+            logger.info("LanceDB vector store initialised in embedded mode")
+        except Exception as exc:
+            logger.error("Failed to initialise LanceDB: %s", exc)
             raise
-    
+
     def _create_table(self):
-        """Create a new table with proper schema"""
-        # Create initial data with proper schema
-        initial_data = pd.DataFrame({
-            'id': [str(uuid.uuid4())],
-            'vector': [np.zeros(self.dimension).tolist()],
-            'text': [''],
-            'metadata': ['{}']
+        import lancedb  # noqa: F401
+        import numpy as np
+        import pandas as pd
+
+        initial = pd.DataFrame({
+            "id": [str(uuid.uuid4())],
+            "vector": [np.zeros(self.dimension).tolist()],
+            "text": [""],
+            "metadata": ["{}"],
         })
-        
-        self.table = self.db.create_table(self.table_name, initial_data, mode="overwrite")
-        
-        # Create vector index for efficient similarity search
+
+        self.table = self.db.create_table(self.table_name, initial, mode="overwrite")
         self.table.create_index(
             "vector",
             index_type="ivf_pq",
             metric=self.metric,
-            num_partitions=1,  # Start with 1 partition for small datasets
-            num_sub_vectors=4
+            num_partitions=1,
+            num_sub_vectors=4,
         )
-        
-        # Remove the initial dummy record
-        self.table.delete("id = '" + initial_data['id'].iloc[0] + "'")
-    
+        self.table.delete(f"id = '{initial['id'].iloc[0]}'")
+
+    # ------------------------------------------------------------------
+    # Remote helpers
+    # ------------------------------------------------------------------
+    def _remote_post(self, path: str, payload: Dict, timeout: int = 10) -> RemoteResponse:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(f"{self.base_url}{path}", json=payload)
+            response.raise_for_status()
+            return RemoteResponse(response.status_code, response.json())
+
+    def _remote_get(self, path: str, timeout: int = 5) -> RemoteResponse:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(f"{self.base_url}{path}")
+            response.raise_for_status()
+            return RemoteResponse(response.status_code, response.json())
+
+    def _remote_delete(self, path: str, timeout: int = 5) -> RemoteResponse:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.delete(f"{self.base_url}{path}")
+            response.raise_for_status()
+            return RemoteResponse(response.status_code, response.json())
+
+    # ------------------------------------------------------------------
+    # CRUD operations
+    # ------------------------------------------------------------------
     def add(self, id: str, vector: List[float], payload: Dict[str, Any]):
-        """Add a vector with payload to LanceDB"""
         try:
-            # Prepare data
-            data = pd.DataFrame({
-                'id': [id],
-                'vector': [vector],
-                'text': [payload.get('text', '')],
-                'metadata': [str(payload)]  # Store as string for simplicity
-            })
-            
-            # Check if document already exists
+            if self.use_remote:
+                self._remote_post(
+                    "/add",
+                    {
+                        "id": str(id),
+                        "vector": vector,
+                        "payload": payload,
+                    },
+                )
+                return
+
+            import pandas as pd
+
+            data = pd.DataFrame(
+                {
+                    "id": [id],
+                    "vector": [vector],
+                    "text": [payload.get("text", "")],
+                    "metadata": [json.dumps(payload)],
+                }
+            )
+
             try:
                 existing = self.table.search().where(f"id = '{id}'").limit(1).to_pandas()
                 if len(existing) > 0:
-                    # Update existing document
                     self.table.delete(f"id = '{id}'")
             except Exception:
-                pass  # Document doesn't exist, which is fine
-            
-            # Add the document
+                pass
+
             self.table.add(data)
-            
-            logger.debug(f"Added document {id} to LanceDB")
-        except Exception as e:
-            logger.error(f"Failed to add document to LanceDB: {e}")
+        except Exception as exc:
+            logger.error("Failed to add document to LanceDB: %s", exc)
             raise
-    
+
     def search(self, query_vector: List[float], limit: int = 5) -> List[VectorSearchResult]:
-        """Search for similar vectors"""
         try:
+            if self.use_remote:
+                result = self._remote_post(
+                    "/search",
+                    {
+                        "vector": query_vector,
+                        "limit": limit,
+                    },
+                ).json
+                return [
+                    VectorSearchResult(
+                        id=item.get("id"),
+                        text=item.get("text", ""),
+                        score=item.get("score", 0.0),
+                        metadata=item.get("metadata", {}),
+                    )
+                    for item in result.get("results", [])
+                ]
+
             if not self.table:
                 return []
-            
-            # Perform vector similarity search
-            results = (self.table
-                      .search(query_vector)
-                      .metric(self.metric)
-                      .limit(limit)
-                      .to_pandas())
-            
-            search_results = []
+
+            import pandas as pd
+
+            results = (
+                self.table.search(query_vector)
+                .metric(self.metric)
+                .limit(limit)
+                .to_pandas()
+            )
+
+            matched: List[VectorSearchResult] = []
             for _, row in results.iterrows():
                 try:
-                    # Parse metadata (stored as string)
-                    metadata = eval(row['metadata']) if row['metadata'] else {}
+                    metadata = json.loads(row.get("metadata", "{}"))
                 except Exception:
                     metadata = {}
-                
-                search_results.append(VectorSearchResult(
-                    id=row['id'],
-                    text=row['text'],
-                    score=1.0 - row['_distance'],  # Convert distance to similarity score
-                    metadata=metadata
-                ))
-            
-            return search_results
-        except Exception as e:
-            logger.error(f"Failed to search in LanceDB: {e}")
+                score = 1.0 - row.get("_distance", 1.0)
+                matched.append(
+                    VectorSearchResult(
+                        id=row.get("id"),
+                        text=row.get("text", ""),
+                        score=score,
+                        metadata=metadata,
+                    )
+                )
+            return matched
+        except Exception as exc:
+            logger.error("Failed to search in LanceDB: %s", exc)
             return []
-    
+
     def delete(self, id: str):
-        """Delete a document by ID"""
         try:
-            self.table.delete(f"id = '{id}'")
-            logger.debug(f"Deleted document {id} from LanceDB")
-        except Exception as e:
-            logger.error(f"Failed to delete document from LanceDB: {e}")
+            if self.use_remote:
+                self._remote_delete(f"/documents/{id}")
+                return
+
+            if self.table:
+                self.table.delete(f"id = '{id}'")
+        except Exception as exc:
+            logger.error("Failed to delete document from LanceDB: %s", exc)
             raise
-    
+
     def update(self, id: str, vector: List[float], payload: Dict[str, Any]):
-        """Update a vector and its payload"""
         try:
-            # Delete existing and add new (LanceDB doesn't have direct update)
             self.delete(id)
             self.add(id, vector, payload)
-            logger.debug(f"Updated document {id} in LanceDB")
-        except Exception as e:
-            logger.error(f"Failed to update document in LanceDB: {e}")
+        except Exception as exc:
+            logger.error("Failed to update document in LanceDB: %s", exc)
             raise
-    
+
     def count(self) -> int:
-        """Get total number of documents"""
         try:
+            if self.use_remote:
+                return self._remote_get("/count").json.get("count", 0)
+
             if not self.table:
                 return 0
-            
-            # Count all rows
-            result = self.table.search().limit(1000000).to_pandas()  # Large limit to get all
+
+            import pandas as pd
+
+            result = self.table.search().limit(1_000_000).to_pandas()
             return len(result)
-        except Exception as e:
-            logger.error(f"Failed to count documents in LanceDB: {e}")
+        except Exception as exc:
+            logger.error("Failed to count documents in LanceDB: %s", exc)
             return 0
-    
+
     def health_check(self) -> bool:
-        """Check if LanceDB vector store is healthy"""
         try:
+            if self.use_remote:
+                health = self._remote_get("/health").json
+                return health.get("status") == "healthy"
+
             if not self.table:
                 return False
-            
-            # Try a simple search operation
+
+            import numpy as np
+
             self.table.search(np.zeros(self.dimension).tolist()).limit(1).to_pandas()
             return True
-        except Exception as e:
-            logger.error(f"LanceDB health check failed: {e}")
+        except Exception as exc:
+            logger.error("LanceDB health check failed: %s", exc)
             return False
-    
+
     def batch_add(self, vectors: List[Dict[str, Any]]):
-        """Add multiple vectors in batch"""
         try:
             if not vectors:
                 return
-            
-            # Prepare batch data
-            data = []
+
+            if self.use_remote:
+                self._remote_post(
+                    "/batch_add",
+                    {
+                        "items": [
+                            {
+                                "id": item["id"],
+                                "vector": item["vector"],
+                                "payload": item["payload"],
+                            }
+                            for item in vectors
+                        ]
+                    },
+                    timeout=30,
+                )
+                return
+
+            import pandas as pd
+
+            rows = []
             for vector_data in vectors:
-                data.append({
-                    'id': vector_data['id'],
-                    'vector': vector_data['vector'],
-                    'text': vector_data['payload'].get('text', ''),
-                    'metadata': str(vector_data['payload'])
-                })
-            
-            df = pd.DataFrame(data)
-            
-            # Remove existing documents with same IDs
+                rows.append(
+                    {
+                        "id": vector_data["id"],
+                        "vector": vector_data["vector"],
+                        "text": vector_data["payload"].get("text", ""),
+                        "metadata": json.dumps(vector_data["payload"]),
+                    }
+                )
+
+            df = pd.DataFrame(rows)
             for vector_data in vectors:
                 try:
                     self.table.delete(f"id = '{vector_data['id']}'")
                 except Exception:
-                    pass  # Document doesn't exist
-            
-            # Add all documents
+                    pass
+
             self.table.add(df)
-            
-            logger.info(f"Batch added {len(vectors)} documents to LanceDB")
-        except Exception as e:
-            logger.error(f"Failed to batch add documents to LanceDB: {e}")
+        except Exception as exc:
+            logger.error("Failed to batch add documents to LanceDB: %s", exc)
             raise
-    
+
     def optimize(self):
-        """Optimize the table (compact and rebuild indexes)"""
+        if self.use_remote:
+            try:
+                self._remote_post("/optimize", {})
+            except Exception as exc:
+                logger.error("Failed to optimise remote LanceDB: %s", exc)
+            return
+
         try:
-            # Compact the table
-            self.table.compact_files()
-            
-            # Rebuild vector index if needed
-            if self.count() > 100:  # Only rebuild index if we have enough data
-                self.table.create_index(
-                    "vector",
-                    index_type="ivf_pq",
-                    metric=self.metric,
-                    num_partitions=max(1, self.count() // 1000),
-                    num_sub_vectors=min(64, self.dimension // 8),
-                    replace=True
-                )
-            
-            logger.info("LanceDB table optimized")
-        except Exception as e:
-            logger.warning(f"Failed to optimize LanceDB table: {e}")
-    
-    def list_tables(self) -> List[str]:
-        """List all tables in the database"""
-        try:
-            return self.db.table_names()
-        except Exception as e:
-            logger.error(f"Failed to list tables in LanceDB: {e}")
-            return []
-    
-    def drop_table(self):
-        """Drop the current table"""
-        try:
-            self.db.drop_table(self.table_name)
-            self.table = None
-            logger.info(f"Dropped LanceDB table: {self.table_name}")
-        except Exception as e:
-            logger.error(f"Failed to drop LanceDB table: {e}")
-            raise
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get table statistics"""
-        try:
-            return {
-                'table_name': self.table_name,
-                'count': self.count(),
-                'dimension': self.dimension,
-                'metric': self.metric,
-                'uri': self.uri,
-                'size_mb': os.path.getsize(self.uri) / (1024 * 1024) if os.path.exists(self.uri) else 0
-            }
-        except Exception as e:
-            logger.error(f"Failed to get LanceDB stats: {e}")
-            return {}
-    
-    def close(self):
-        """Close the database connection"""
-        try:
-            # LanceDB doesn't require explicit closing
-            self.db = None
-            self.table = None
-            logger.info("LanceDB connection closed")
-        except Exception as e:
-            logger.warning(f"Error closing LanceDB: {e}")
-            pass
+            if self.table:
+                self.table.compact_files()
+        except Exception as exc:
+            logger.error("Failed to optimise LanceDB table: %s", exc)

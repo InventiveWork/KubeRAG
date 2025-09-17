@@ -7,6 +7,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import io
 import re
+import time
 from llama_index.core import SimpleDirectoryReader
 from llama_index.readers.file import (
     PDFReader,
@@ -18,6 +19,8 @@ from llama_index.readers.file import (
 import json
 from datetime import datetime
 import uuid
+from pathlib import Path
+import asyncio
 
 # Import vector store system
 import sys
@@ -37,37 +40,72 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L12-v2")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))
 
+
+_chunk_config_lock: Optional[asyncio.Lock] = None
+
+
+def _get_chunk_lock() -> asyncio.Lock:
+    global _chunk_config_lock
+    if _chunk_config_lock is None:
+        _chunk_config_lock = asyncio.Lock()
+    return _chunk_config_lock
+
 # Initialize embedding model
 embedder = None
 try:
     logger.info(f"Initializing embedding model: {EMBEDDING_MODEL}")
-    model_name_path = EMBEDDING_MODEL.replace('/', '_')
-    model_path = f'/app/models/{model_name_path}'
-    print(f"Model path: {model_path}")
-    embedder = SentenceTransformer(model_path)
-    logger.info(f"Embedding model {EMBEDDING_MODEL} loaded successfully from {model_path}")
+    model_dir_name = EMBEDDING_MODEL.replace('/', '_')
+    packaged_model_path = Path('/app/models') / model_dir_name
+    cache_root = Path(os.getenv('TRANSFORMERS_CACHE', '/home/nonroot/.cache/huggingface'))
+    cache_root.mkdir(parents=True, exist_ok=True)
+
+    if packaged_model_path.exists():
+        embedder = SentenceTransformer(str(packaged_model_path))
+        logger.info(f"Embedding model {EMBEDDING_MODEL} loaded successfully from {packaged_model_path}")
+    else:
+        embedder = SentenceTransformer(EMBEDDING_MODEL, cache_folder=str(cache_root))
+        logger.info(
+            "Embedding model %s downloaded to cache %s and initialized successfully",
+            EMBEDDING_MODEL,
+            cache_root,
+        )
 except Exception as e:
     logger.error(f"Failed to initialize embedding model {EMBEDDING_MODEL}: {e}")
     logger.error("Embedding functionality will be disabled. Document upload may fail.")
 
 # Initialize vector store
 vector_store = None
-try:
-    logger.info(f"Creating vector store config for type: {VECTOR_STORE_TYPE}")
-    config = VectorStoreConfigFactory.from_env(VECTOR_STORE_TYPE)
-    logger.info(f"Config created successfully")
-    config_dict = config.to_dict()
-    logger.info(f"Vector store config: {config_dict}")
-    logger.info(f"Creating vector store instance...")
-    vector_store = get_vector_store(VECTOR_STORE_TYPE, **config_dict)
-    logger.info(f"Vector store instance created, calling initialize...")
-    vector_store.initialize()
-    logger.info(f"Vector store {VECTOR_STORE_TYPE} initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize vector store: {e}")
-    import traceback
-    logger.error(f"Full traceback: {traceback.format_exc()}")
-    vector_store = None
+connect_attempts = int(os.getenv("VECTOR_STORE_CONNECT_RETRIES", "5"))
+connect_backoff = float(os.getenv("VECTOR_STORE_CONNECT_BACKOFF", "2.0"))
+
+logger.info(f"Creating vector store config for type: {VECTOR_STORE_TYPE}")
+config = VectorStoreConfigFactory.from_env(VECTOR_STORE_TYPE)
+logger.info("Config created successfully")
+config_dict = config.to_dict()
+logger.info(f"Vector store config: {config_dict}")
+
+for attempt in range(1, connect_attempts + 1):
+    try:
+        logger.info("Creating vector store instance (attempt %s/%s)...", attempt, connect_attempts)
+        vector_store = get_vector_store(VECTOR_STORE_TYPE, **config_dict)
+        logger.info("Vector store %s initialized successfully", VECTOR_STORE_TYPE)
+        break
+    except Exception as exc:
+        logger.error("Failed to initialize vector store: %s", exc)
+        if attempt == connect_attempts:
+            import traceback
+
+            logger.error("Full traceback: %s", traceback.format_exc())
+            vector_store = None
+        else:
+            sleep_seconds = connect_backoff * attempt
+            logger.warning(
+                "Retrying vector store initialization in %.1f seconds...", sleep_seconds
+            )
+            time.sleep(sleep_seconds)
+
+if vector_store is None:
+    raise RuntimeError("Vector store initialization failed after retries")
 
 class DocumentRequest(BaseModel):
     text: str
@@ -495,10 +533,10 @@ async def ingest_file(
         
         meta_dict['filename'] = file.filename
         meta_dict['content_type'] = file.content_type
-        meta_dict['file_size'] = file.size
         
         # Read file content
         content = await file.read()
+        meta_dict['file_size'] = len(content)
         
         # Use universal file extractor with LlamaIndex
         try:
@@ -512,14 +550,15 @@ async def ingest_file(
         # Apply custom chunking configuration if provided
         if chunk_cfg:
             global CHUNK_SIZE, CHUNK_OVERLAP
-            old_chunk_size, old_chunk_overlap = CHUNK_SIZE, CHUNK_OVERLAP
-            CHUNK_SIZE = chunk_cfg.get('chunk_size', CHUNK_SIZE)
-            CHUNK_OVERLAP = chunk_cfg.get('chunk_overlap', CHUNK_OVERLAP)
-            
-            try:
-                chunks_created = process_and_index_text(text, meta_dict, chunk)
-            finally:
-                CHUNK_SIZE, CHUNK_OVERLAP = old_chunk_size, old_chunk_overlap
+            lock = _get_chunk_lock()
+            async with lock:
+                old_chunk_size, old_chunk_overlap = CHUNK_SIZE, CHUNK_OVERLAP
+                CHUNK_SIZE = chunk_cfg.get('chunk_size', CHUNK_SIZE)
+                CHUNK_OVERLAP = chunk_cfg.get('chunk_overlap', CHUNK_OVERLAP)
+                try:
+                    chunks_created = process_and_index_text(text, meta_dict, chunk)
+                finally:
+                    CHUNK_SIZE, CHUNK_OVERLAP = old_chunk_size, old_chunk_overlap
         else:
             chunks_created = process_and_index_text(text, meta_dict, chunk)
         
@@ -542,8 +581,10 @@ async def configure_chunking(config: ChunkingConfig):
     """Configure text chunking parameters"""
     try:
         global CHUNK_SIZE, CHUNK_OVERLAP
-        CHUNK_SIZE = config.chunk_size
-        CHUNK_OVERLAP = config.chunk_overlap
+        lock = _get_chunk_lock()
+        async with lock:
+            CHUNK_SIZE = config.chunk_size
+            CHUNK_OVERLAP = config.chunk_overlap
         
         return {
             "status": "success",

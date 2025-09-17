@@ -6,11 +6,13 @@ FastAPI-based chat service that works with all supported vector stores
 
 import os
 import logging
+import time
 from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
+from pathlib import Path
 
 # Import our config system
 import sys
@@ -130,19 +132,51 @@ def initialize_services():
             vector_store_config.update({
                 'uri': getattr(config.vector_store, 'lancedb_uri', '/app/data/lancedb'),
                 'table_name': getattr(config.vector_store, 'lancedb_table', 'vectors'),
+                'host': getattr(config.vector_store, 'lancedb_host', None),
+                'port': getattr(config.vector_store, 'lancedb_port', 8080),
+                'metric': getattr(config.vector_store, 'lancedb_metric', 'cosine'),
             })
 
-        vector_store = get_vector_store(config.vector_store.type, **vector_store_config)
-        vector_store.initialize()
-        logger.info(f"Initialized vector store: {config.vector_store.type}")
+        connect_attempts = int(os.getenv("VECTOR_STORE_CONNECT_RETRIES", "5"))
+        connect_backoff = float(os.getenv("VECTOR_STORE_CONNECT_BACKOFF", "2.0"))
+
+        for attempt in range(1, connect_attempts + 1):
+            try:
+                logger.info(
+                    "Initializing vector store (attempt %s/%s)...",
+                    attempt,
+                    connect_attempts,
+                )
+                vector_store = get_vector_store(config.vector_store.type, **vector_store_config)
+                logger.info(f"Initialized vector store: {config.vector_store.type}")
+                break
+            except Exception as exc:
+                logger.error("Vector store initialization failed: %s", exc)
+                if attempt == connect_attempts:
+                    raise
+                sleep_seconds = connect_backoff * attempt
+                logger.warning(
+                    "Retrying vector store initialization in %.1f seconds...",
+                    sleep_seconds,
+                )
+                time.sleep(sleep_seconds)
         
         # Initialize embedder - try to connect to pipeline service for consistency
         try:
             # Use the same embedding model as the pipeline
             from sentence_transformers import SentenceTransformer
-            model_path = f"/app/models/{config.embedding.model}"
-            embedder = SentenceTransformer(model_path)
-            logger.info(f"Initialized local embedding model: {config.embedding.model}")
+
+            model_name = config.embedding.model
+            packaged_model_path = Path('/app/models') / model_name.replace('/', '_')
+            cache_root = Path(os.getenv('TRANSFORMERS_CACHE', '/home/nonroot/.cache/huggingface'))
+            cache_root.mkdir(parents=True, exist_ok=True)
+
+            if packaged_model_path.exists():
+                embedder = SentenceTransformer(str(packaged_model_path))
+            else:
+                embedder = SentenceTransformer(model_name, cache_folder=str(cache_root))
+
+            logger.info(f"Initialized embedding model: {model_name}")
         except Exception as e:
             logger.warning(f"Failed to load local embedder: {e}")
             embedder = None

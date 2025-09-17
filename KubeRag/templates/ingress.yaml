@@ -1,54 +1,43 @@
+{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: tls-{{ .Release.Name }}-ingress
-  namespace: {{ .Release.Name }}
+  name: {{ .Release.Name }}-ingress
+  namespace: {{ .Release.Namespace }}
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
 spec:
-  {{- if .Values.INGRESS_CLASS_NAME }}
-  ingressClassName: {{ .Values.INGRESS_CLASS_NAME }}
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
   {{- end }}
-  {{- if .Values.INGRESS_HOST }}
+  {{- if and .Values.ingress.host .Values.ingress.tls.enabled }}
   tls:
-  - hosts:
-      - {{ .Values.INGRESS_HOST }}
-    secretName: {{ .Release.Name }}-tls-secret
-  rules:
-  - host: {{ .Values.INGRESS_HOST }}
-    http:
-      paths:
-      - path: /agent
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Release.Name }}-agent-service
-            port:
-              number: 80
-      - path: /data
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Release.Name }}-pipeline-service
-            port:
-              number: 80
-  {{- else }}
-  rules:
-  - http:
-      paths:
-      - path: /agent
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Release.Name }}-agent-service
-            port:
-              number: 80
-      - path: /data
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Release.Name }}-pipeline-service
-            port:
-              number: 80
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls" .Release.Name) | quote }}
   {{- end }}
+  rules:
+    - {{- if .Values.ingress.host }}
+      host: {{ .Values.ingress.host }}
+      {{- end }}
+      http:
+        paths:
+          - path: /agent
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-agent-service
+                port:
+                  number: {{ .Values.service.agent.port | default 80 }}
+          - path: /data
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-pipeline-service
+                port:
+                  number: {{ .Values.service.pipeline.port | default 80 }}
+{{- end }}

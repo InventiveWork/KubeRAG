@@ -2,9 +2,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: faiss-server
+  name: {{ .Release.Name }}-faiss-server
+  namespace: {{ .Release.Namespace }}
   labels:
     app: faiss-server
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: 1
   selector:
@@ -14,11 +16,12 @@ spec:
     metadata:
       labels:
         app: faiss-server
+        app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       containers:
       - name: faiss-server
-        image: kuberag-faiss-server:latest
-        imagePullPolicy: Never
+        image: {{ .Values.vectorStore.faiss.image | default "kuberag-faiss-server:latest" }}
+        imagePullPolicy: {{ .Values.vectorStore.faiss.pullPolicy | default "IfNotPresent" }}
         ports:
         - containerPort: 8080
           name: http
@@ -41,7 +44,7 @@ spec:
       - name: faiss-data
         {{- if .Values.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: faiss-pvc
+          claimName: {{ .Release.Name }}-faiss-pvc
         {{- else }}
         emptyDir: {}
         {{- end }}
@@ -50,7 +53,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: faiss-pvc
+  name: {{ .Release.Name }}-faiss-pvc
+  namespace: {{ .Release.Namespace }}
 spec:
   accessModes:
     - ReadWriteOnce
@@ -65,9 +69,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: faiss-service
+  name: {{ .Release.Name }}-faiss-service
+  namespace: {{ .Release.Namespace }}
   labels:
     app: faiss-server
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   type: ClusterIP
   ports:

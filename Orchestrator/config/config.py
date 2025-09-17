@@ -42,6 +42,13 @@ class VectorStoreConfig:
     qdrant_https: bool = False
     qdrant_timeout: float = 5.0
 
+    # LanceDB specific
+    lancedb_uri: str = "/data/lancedb"
+    lancedb_host: Optional[str] = None
+    lancedb_port: int = 8080
+    lancedb_metric: str = "cosine"
+    lancedb_table: str = "documents"
+
 @dataclass
 class EmbeddingConfig:
     """Embedding configuration"""
@@ -55,13 +62,28 @@ class TextProcessingConfig:
     chunk_overlap: int = 50
     method: str = "words"
 
+def _infer_embedding_dimension(model_name: Optional[str]) -> int:
+    """Best-effort dimension inference for sentence-transformer style models."""
+    if not model_name:
+        return 768
+
+    name = model_name.lower()
+
+    # Common small sentence-transformer families ship 384-d embeddings.
+    if "minilm" in name or "e5-small" in name or "mpnet-base-v2" not in name and name.endswith("-v2"):
+        return 384
+
+    # Fall back to the standard 768-d size used by most base models.
+    return 768
+
+
 class Config:
     """Centralized configuration manager"""
     
     def __init__(self):
-        self.llm = self._load_llm_config()
-        self.vector_store = self._load_vector_store_config()
         self.embedding = self._load_embedding_config()
+        self.vector_store = self._load_vector_store_config()
+        self.llm = self._load_llm_config()
         self.text_processing = self._load_text_processing_config()
     
     def _load_llm_config(self) -> LLMConfig:
@@ -85,19 +107,51 @@ class Config:
     
     def _load_vector_store_config(self) -> VectorStoreConfig:
         """Load vector store configuration from environment"""
+        configured_dimension = os.getenv("VECTOR_STORE_DIMENSION")
+        inferred_dimension = _infer_embedding_dimension(os.getenv("EMBEDDING_MODEL"))
+
+        if configured_dimension and int(configured_dimension) != inferred_dimension:
+            logger.warning(
+                "VECTOR_STORE_DIMENSION=%s does not match embedding dimension %s. "
+                "Overriding to embedding dimension.",
+                configured_dimension,
+                inferred_dimension,
+            )
+
+        dimension = inferred_dimension if not configured_dimension else int(configured_dimension)
+        if dimension != inferred_dimension:
+            dimension = inferred_dimension
+
+        collection = os.getenv("VECTOR_STORE_COLLECTION_NAME") or "documents"
+
+        release_name = os.getenv("HELM_RELEASE_NAME")
+        default_qdrant_host = (
+            os.getenv("QDRANT_HOST")
+            or (f"{release_name}-qdrant-service" if release_name else "qdrant-service")
+        )
+        default_lancedb_host = (
+            os.getenv("VECTOR_STORE_LANCEDB_HOST")
+            or (f"{release_name}-lancedb-service" if release_name else None)
+        )
+
         return VectorStoreConfig(
             type=os.getenv("VECTOR_STORE_TYPE", "qdrant"),
-            dimension=int(os.getenv("VECTOR_STORE_DIMENSION", "768")),
-            collection_name=os.getenv("VECTOR_STORE_COLLECTION", "documents"),
+            dimension=dimension,
+            collection_name=collection,
             
             # Qdrant
-            qdrant_host=os.getenv("QDRANT_HOST", "qdrant-service"),
+            qdrant_host=default_qdrant_host,
             qdrant_port=int(os.getenv("QDRANT_PORT", "6333")),
             qdrant_grpc_port=int(os.getenv("QDRANT_GRPC_PORT", "6334")),
             qdrant_api_key=os.getenv("QDRANT_API_KEY"),
             qdrant_prefer_grpc=os.getenv("QDRANT_PREFER_GRPC", "false").lower() == "true",
             qdrant_https=os.getenv("QDRANT_HTTPS", "false").lower() == "true",
-            qdrant_timeout=float(os.getenv("QDRANT_TIMEOUT", "5.0"))
+            qdrant_timeout=float(os.getenv("QDRANT_TIMEOUT", "5.0")),
+            lancedb_uri=os.getenv("VECTOR_STORE_LANCEDB_URI", "/data/lancedb"),
+            lancedb_host=default_lancedb_host,
+            lancedb_port=int(os.getenv("VECTOR_STORE_LANCEDB_PORT", "8080")),
+            lancedb_metric=os.getenv("VECTOR_STORE_LANCEDB_METRIC", "cosine"),
+            lancedb_table=os.getenv("VECTOR_STORE_LANCEDB_TABLE_NAME", "documents"),
         )
     
     def _load_embedding_config(self) -> EmbeddingConfig:
@@ -172,10 +226,16 @@ class Config:
         env_vars["QDRANT_PREFER_GRPC"] = str(self.vector_store.qdrant_prefer_grpc).lower()
         env_vars["QDRANT_HTTPS"] = str(self.vector_store.qdrant_https).lower()
         env_vars["QDRANT_TIMEOUT"] = str(self.vector_store.qdrant_timeout)
-        
+        env_vars["VECTOR_STORE_LANCEDB_URI"] = self.vector_store.lancedb_uri
+        if self.vector_store.lancedb_host:
+            env_vars["VECTOR_STORE_LANCEDB_HOST"] = self.vector_store.lancedb_host
+        env_vars["VECTOR_STORE_LANCEDB_PORT"] = str(self.vector_store.lancedb_port)
+        env_vars["VECTOR_STORE_LANCEDB_METRIC"] = self.vector_store.lancedb_metric
+        env_vars["VECTOR_STORE_LANCEDB_TABLE_NAME"] = self.vector_store.lancedb_table
+
         # Embedding Config
         env_vars["EMBEDDING_MODEL"] = self.embedding.model
-        
+
         # Text Processing Config
         env_vars["CHUNK_SIZE"] = str(self.text_processing.chunk_size)
         env_vars["CHUNK_OVERLAP"] = str(self.text_processing.chunk_overlap)

@@ -58,9 +58,15 @@ class BaseVectorStore(ABC):
     def health_check(self) -> bool:
         """Check if vector store is healthy"""
         try:
-            # Try a simple operation with the configured dimension
+            try:
+                count = self.count()
+                if isinstance(count, int):
+                    return True
+            except NotImplementedError:
+                pass
+
             dimension = self.config.get('dimension', 384)
-            self.search([0.1] * dimension, limit=1)
+            self.search([0.0] * dimension, limit=1)
             return True
         except Exception:
             return False

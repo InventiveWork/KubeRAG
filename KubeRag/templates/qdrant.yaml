@@ -2,9 +2,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: qdrant
+  name: {{ .Release.Name }}-qdrant
+  namespace: {{ .Release.Namespace }}
   labels:
     app: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: 1
   selector:
@@ -14,10 +16,11 @@ spec:
     metadata:
       labels:
         app: qdrant
+        app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       containers:
       - name: qdrant
-        image: qdrant/qdrant:latest #Or specify a specific version
+        image: {{ .Values.vectorStore.qdrant.image | default "qdrant/qdrant:latest" }}
         ports:
         - containerPort: 6333 # gRPC port
         - containerPort: 6332 # HTTP port
@@ -27,14 +30,16 @@ spec:
       volumes:
       - name: qdrant-data
         persistentVolumeClaim:
-          claimName: qdrant-pvc #Referencing a PVC
+          claimName: {{ .Release.Name }}-qdrant-pvc #Referencing a PVC
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: qdrant-service
+  name: {{ .Release.Name }}-qdrant-service
+  namespace: {{ .Release.Namespace }}
   labels:
     app: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   ports:
   - name: grpc
@@ -50,7 +55,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: qdrant-pvc
+  name: {{ .Release.Name }}-qdrant-pvc
+  namespace: {{ .Release.Namespace }}
 spec:
   accessModes:
   - ReadWriteOnce #Or ReadWriteMany if needed

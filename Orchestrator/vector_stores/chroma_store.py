@@ -19,10 +19,22 @@ class ChromaVectorStore(BaseVectorStore):
             from chromadb.config import Settings
             
             # Configuration
-            self.collection_name = self.config.get('collection', 'kuberag_documents')
+            self.collection_name = (
+                self.config.get('collection_name')
+                or os.getenv('VECTOR_STORE_COLLECTION_NAME')
+                or 'kuberag_documents'
+            )
             self.persist_directory = self.config.get('persist_directory', '/tmp/chroma_db')
-            self.host = self.config.get('host', 'localhost')
+            self.host = self.config.get('host')
             self.port = self.config.get('port', 8000)
+
+            if not self.host:
+                release_name = os.getenv('HELM_RELEASE_NAME')
+                if release_name:
+                    self.host = f"{release_name}-chromadb-service"
+
+            if not self.host:
+                self.host = 'localhost'
             
             # Initialize client based on configuration
             logger.info(f"ChromaDB config: host={self.host}, port={self.port}, in_memory={self.config.get('in_memory', False)}, persistent={self.config.get('persistent', True)}")

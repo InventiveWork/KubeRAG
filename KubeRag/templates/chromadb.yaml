@@ -2,9 +2,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chromadb
+  name: {{ .Release.Name }}-chromadb
+  namespace: {{ .Release.Namespace }}
   labels:
     app: chromadb
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: 1
   selector:
@@ -14,10 +16,11 @@ spec:
     metadata:
       labels:
         app: chromadb
+        app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       containers:
       - name: chromadb
-        image: chromadb/chroma:latest
+        image: {{ .Values.vectorStore.chroma.image | default "chromadb/chroma:latest" }}
         ports:
         - containerPort: 8000
           name: http
@@ -46,7 +49,7 @@ spec:
       - name: chromadb-storage
         {{- if .Values.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: chromadb-pvc
+          claimName: {{ .Release.Name }}-chromadb-pvc
         {{- else }}
         emptyDir: {}
         {{- end }}
@@ -55,7 +58,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: chromadb-pvc
+  name: {{ .Release.Name }}-chromadb-pvc
+  namespace: {{ .Release.Namespace }}
 spec:
   accessModes:
     - {{ .Values.persistence.accessMode | default "ReadWriteOnce" }}
@@ -70,9 +74,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: chromadb-service
+  name: {{ .Release.Name }}-chromadb-service
+  namespace: {{ .Release.Namespace }}
   labels:
     app: chromadb
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   type: ClusterIP
   ports:

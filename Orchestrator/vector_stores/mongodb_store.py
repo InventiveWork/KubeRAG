@@ -16,7 +16,11 @@ class MongoDBVectorStore(BaseVectorStore):
             
             self.connection_string = self.config.get('connection_string') or os.getenv('MONGODB_URI')
             self.database_name = self.config.get('database') or os.getenv('MONGODB_DATABASE', 'kuberag')
-            self.collection_name = self.config.get('collection') or os.getenv('MONGODB_COLLECTION', 'vectors')
+            self.collection_name = (
+                self.config.get('collection_name')
+                or os.getenv('VECTOR_STORE_COLLECTION_NAME')
+                or 'vectors'
+            )
             self.index_name = self.config.get('index_name') or os.getenv('MONGODB_VECTOR_INDEX', 'vector_index')
             
             if not self.connection_string:

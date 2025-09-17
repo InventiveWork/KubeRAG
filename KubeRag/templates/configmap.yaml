@@ -24,10 +24,10 @@ data:
   # Vector Store Configuration
   VECTOR_STORE_TYPE: {{ .Values.vectorStore.type | default "qdrant" | quote }}
   VECTOR_STORE_DIMENSION: {{ .Values.vectorStore.dimension | default 768 | quote }}
-  VECTOR_STORE_COLLECTION: {{ .Values.vectorStore.collectionName | default "documents" | quote }}
+  VECTOR_STORE_COLLECTION_NAME: {{ .Values.vectorStore.collectionName | default "documents" | quote }}
 
   {{- if eq (.Values.vectorStore.type | default "qdrant") "qdrant" }}
-  QDRANT_HOST: {{ .Values.vectorStore.qdrant.host | default "qdrant-service" | quote }}
+  QDRANT_HOST: {{ .Values.vectorStore.qdrant.host | default (printf "%s-qdrant-service" .Release.Name) | quote }}
   QDRANT_PORT: {{ .Values.vectorStore.qdrant.port | default 6333 | quote }}
   QDRANT_GRPC_PORT: {{ .Values.vectorStore.qdrant.grpcPort | default 6334 | quote }}
   QDRANT_PREFER_GRPC: {{ .Values.vectorStore.qdrant.preferGrpc | default false | quote }}
@@ -58,12 +58,12 @@ data:
   VECTOR_STORE_NEO4J_DATABASE: {{ .Values.vectorStore.neo4j.database | default "neo4j" | quote }}
   VECTOR_STORE_NEO4J_INDEX_NAME: {{ .Values.vectorStore.neo4j.indexName | default "document_embeddings" | quote }}
   {{- else if eq (.Values.vectorStore.type | default "qdrant") "chroma" }}
-  VECTOR_STORE_CHROMA_HOST: {{ .Values.vectorStore.chroma.host | default "chromadb-service" | quote }}
+  VECTOR_STORE_CHROMA_HOST: {{ .Values.vectorStore.chroma.host | default (printf "%s-chromadb-service" .Release.Name) | quote }}
   VECTOR_STORE_CHROMA_PORT: {{ .Values.vectorStore.chroma.port | default 8000 | quote }}
   VECTOR_STORE_CHROMA_PERSIST_DIR: "/nonexistent/readonly/path"
   VECTOR_STORE_CHROMA_PERSISTENT: "false"
   {{- else if eq (.Values.vectorStore.type | default "qdrant") "faiss" }}
-  VECTOR_STORE_FAISS_HOST: {{ .Values.vectorStore.faiss.host | default "faiss-service" | quote }}
+  VECTOR_STORE_FAISS_HOST: {{ .Values.vectorStore.faiss.host | default (printf "%s-faiss-service" .Release.Name) | quote }}
   VECTOR_STORE_FAISS_PORT: {{ .Values.vectorStore.faiss.port | default 8080 | quote }}
   VECTOR_STORE_FAISS_INDEX_PATH: {{ .Values.vectorStore.faiss.indexPath | default "/data/faiss_index" | quote }}
   VECTOR_STORE_FAISS_METADATA_PATH: {{ .Values.vectorStore.faiss.metadataPath | default "/data/faiss_metadata.pkl" | quote }}
@@ -72,6 +72,8 @@ data:
   VECTOR_STORE_LANCEDB_URI: {{ .Values.vectorStore.lancedb.uri | default "/data/lancedb" | quote }}
   VECTOR_STORE_LANCEDB_TABLE_NAME: {{ .Values.vectorStore.lancedb.tableName | default "documents" | quote }}
   VECTOR_STORE_LANCEDB_METRIC: {{ .Values.vectorStore.lancedb.metric | default "cosine" | quote }}
+  VECTOR_STORE_LANCEDB_HOST: {{ .Values.vectorStore.lancedb.host | default (printf "%s-lancedb-service" .Release.Name) | quote }}
+  VECTOR_STORE_LANCEDB_PORT: {{ .Values.vectorStore.lancedb.port | default 8080 | quote }}
   {{- end }}
 
   # Embedding Configuration

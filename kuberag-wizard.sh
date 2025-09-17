@@ -19,6 +19,18 @@ NAMESPACE="kuberag"
 RELEASE_NAME="my-kuberag"
 VALUES_FILE="my-kuberag-values.yaml"
 
+# Default container images/tags (override via environment variables)
+DEFAULT_AGENT_IMAGE=${KUBERAG_AGENT_IMAGE:-kuberag-agent}
+DEFAULT_AGENT_TAG=${KUBERAG_AGENT_TAG:-latest}
+DEFAULT_PIPELINE_IMAGE=${KUBERAG_PIPELINE_IMAGE:-kuberag-pipeline}
+DEFAULT_PIPELINE_TAG=${KUBERAG_PIPELINE_TAG:-latest}
+DEFAULT_QDRANT_IMAGE=${KUBERAG_QDRANT_IMAGE:-qdrant/qdrant:latest}
+DEFAULT_CHROMA_IMAGE=${KUBERAG_CHROMA_IMAGE:-chromadb/chroma:latest}
+DEFAULT_FAISS_IMAGE=${KUBERAG_FAISS_IMAGE:-kuberag-faiss-server:latest}
+DEFAULT_FAISS_PULL_POLICY=${KUBERAG_FAISS_PULL_POLICY:-IfNotPresent}
+DEFAULT_LANCEDB_IMAGE=${KUBERAG_LANCEDB_IMAGE:-kuberag-lancedb-server:latest}
+DEFAULT_LANCEDB_PULL_POLICY=${KUBERAG_LANCEDB_PULL_POLICY:-IfNotPresent}
+
 # Clear screen and show banner
 clear
 printf "${CYAN}╔════════════════════════════════════════════╗${NC}\n"
@@ -106,6 +118,37 @@ echo "  (Press Enter for default: my-kuberag)"
 read -p "  Release name: " user_release
 RELEASE_NAME=${user_release:-my-kuberag}
 printf "  ${GREEN}✓${NC} Release name: ${BOLD}$RELEASE_NAME${NC}\n"
+
+# Step 3: Image versions
+show_step "Select container image tags"
+echo
+echo "You can override the container images if you have custom builds ready."
+echo "Press Enter to accept the defaults (latest)."
+echo
+
+AGENT_IMAGE_REPO=$DEFAULT_AGENT_IMAGE
+AGENT_IMAGE_TAG=$DEFAULT_AGENT_TAG
+PIPELINE_IMAGE_REPO=$DEFAULT_PIPELINE_IMAGE
+PIPELINE_IMAGE_TAG=$DEFAULT_PIPELINE_TAG
+QDRANT_IMAGE=$DEFAULT_QDRANT_IMAGE
+CHROMA_IMAGE=$DEFAULT_CHROMA_IMAGE
+FAISS_IMAGE=$DEFAULT_FAISS_IMAGE
+FAISS_PULL_POLICY=$DEFAULT_FAISS_PULL_POLICY
+LANCEDB_IMAGE=$DEFAULT_LANCEDB_IMAGE
+LANCEDB_PULL_POLICY=$DEFAULT_LANCEDB_PULL_POLICY
+
+read -p "  Agent image repository [$AGENT_IMAGE_REPO]: " input
+AGENT_IMAGE_REPO=${input:-$AGENT_IMAGE_REPO}
+read -p "  Agent image tag [$AGENT_IMAGE_TAG]: " input
+AGENT_IMAGE_TAG=${input:-$AGENT_IMAGE_TAG}
+read -p "  Pipeline image repository [$PIPELINE_IMAGE_REPO]: " input
+PIPELINE_IMAGE_REPO=${input:-$PIPELINE_IMAGE_REPO}
+read -p "  Pipeline image tag [$PIPELINE_IMAGE_TAG]: " input
+PIPELINE_IMAGE_TAG=${input:-$PIPELINE_IMAGE_TAG}
+
+echo
+printf "  ${GREEN}✓${NC} Agent image: ${BOLD}%s:%s${NC}\n" "$AGENT_IMAGE_REPO" "$AGENT_IMAGE_TAG"
+printf "  ${GREEN}✓${NC} Pipeline image: ${BOLD}%s:%s${NC}\n" "$PIPELINE_IMAGE_REPO" "$PIPELINE_IMAGE_TAG"
 
 # Step 3: Choose LLM Provider
 show_step "Choose your AI provider"
@@ -389,12 +432,12 @@ fullnameOverride: ""
 # Images
 images:
   agent:
-    repository: kuberag-agent
-    tag: "v1.0.17"
+    repository: $AGENT_IMAGE_REPO
+    tag: "$AGENT_IMAGE_TAG"
     pullPolicy: IfNotPresent
   pipeline:
-    repository: kuberag-pipeline
-    tag: "v1.0.10"
+    repository: $PIPELINE_IMAGE_REPO
+    tag: "$PIPELINE_IMAGE_TAG"
     pullPolicy: IfNotPresent
 
 # LLM Configuration
@@ -442,7 +485,8 @@ case $VECTOR_STORE in
 
   # Qdrant Configuration
   qdrant:
-    host: "qdrant-service"
+    image: "$QDRANT_IMAGE"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false
@@ -457,7 +501,7 @@ EOF
 
   # MongoDB Configuration
   mongodb:
-    host: "mongodb-service"
+    host: ""
     port: 27017
     database: "$MONGODB_DB"
     username: "kuberag"
@@ -468,7 +512,8 @@ EOF
 
   # Qdrant Configuration (disabled when using MongoDB)
   qdrant:
-    host: "qdrant-service"
+    image: "$QDRANT_IMAGE"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false
@@ -483,13 +528,15 @@ EOF
 
   # ChromaDB Configuration
   chroma:
-    host: "chromadb-service"
+    image: "$CHROMA_IMAGE"
+    host: ""
     port: 8000
     deploy: true
 
   # Qdrant Configuration (disabled when using ChromaDB)
   qdrant:
-    host: "qdrant-service"
+    image: "$QDRANT_IMAGE"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false
@@ -504,7 +551,9 @@ EOF
 
   # FAISS Configuration
   faiss:
-    host: "faiss-service"
+    image: "$FAISS_IMAGE"
+    pullPolicy: "$FAISS_PULL_POLICY"
+    host: ""
     port: 8080
     indexPath: "/data/faiss_index"
     metadataPath: "/data/faiss_metadata.pkl"
@@ -513,7 +562,8 @@ EOF
 
   # Qdrant Configuration (disabled when using FAISS)
   qdrant:
-    host: "qdrant-service"
+    image: "$QDRANT_IMAGE"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false
@@ -537,7 +587,8 @@ EOF
 
   # Qdrant Configuration (disabled when using PostgreSQL)
   qdrant:
-    host: "qdrant-service"
+    image: "$QDRANT_IMAGE"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false
@@ -562,7 +613,8 @@ EOF
 
   # Qdrant Configuration (disabled when using Elasticsearch)
   qdrant:
-    host: "qdrant-service"
+    image: "$QDRANT_IMAGE"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false
@@ -585,7 +637,8 @@ EOF
 
   # Qdrant Configuration (disabled when using Neo4j)
   qdrant:
-    host: "qdrant-service"
+    image: "$QDRANT_IMAGE"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false
@@ -596,17 +649,41 @@ EOF
 EOF
         ;;
     "lancedb")
+        read -p "Deploy LanceDB in cluster? (y/n, default: y): " DEPLOY_LANCEDB
+        DEPLOY_LANCEDB=${DEPLOY_LANCEDB:-y}
+        read -p "Enter LanceDB persistence path (default: /data/lancedb): " LANCEDB_PATH
+        LANCEDB_PATH=${LANCEDB_PATH:-/data/lancedb}
+        read -p "Enter table name (default: documents): " LANCEDB_TABLE
+        LANCEDB_TABLE=${LANCEDB_TABLE:-documents}
+        read -p "Enter similarity metric (cosine/l2/dot, default: cosine): " LANCEDB_METRIC
+        LANCEDB_METRIC=${LANCEDB_METRIC:-cosine}
+
+        if [ "$DEPLOY_LANCEDB" != "y" ]; then
+            read -p "Enter LanceDB host: " LANCEDB_HOST
+            read -p "Enter LanceDB port (default: 8080): " LANCEDB_PORT
+            LANCEDB_PORT=${LANCEDB_PORT:-8080}
+        else
+            LANCEDB_HOST=""
+            LANCEDB_PORT=8080
+        fi
+
         cat >> $VALUES_FILE << EOF
 
   # LanceDB Configuration
   lancedb:
-    uri: "/data/lancedb"
-    tableName: "documents"
-    metric: "cosine"
+    image: "$LANCEDB_IMAGE"
+    pullPolicy: "$LANCEDB_PULL_POLICY"
+    uri: "$LANCEDB_PATH"
+    host: "$LANCEDB_HOST"
+    port: $LANCEDB_PORT
+    tableName: "$LANCEDB_TABLE"
+    metric: "$LANCEDB_METRIC"
+    deploy: $([ "$DEPLOY_LANCEDB" = "y" ] && echo true || echo false)
 
   # Qdrant Configuration (disabled when using LanceDB)
   qdrant:
-    host: "qdrant-service"
+    image: "$QDRANT_IMAGE"
+    host: ""
     port: 6333
     grpcPort: 6334
     preferGrpc: false

@@ -21,7 +21,11 @@ class QdrantVectorStore(BaseVectorStore):
             
             self.url = self.config.get('url') or f'http://{qdrant_host}:{qdrant_port}'
             self.api_key = self.config.get('api_key') or os.getenv('QDRANT_API_KEY')
-            self.collection_name = self.config.get('collection') or os.getenv('VECTOR_STORE_COLLECTION', 'documents')
+            self.collection_name = (
+                self.config.get('collection_name')
+                or os.getenv('VECTOR_STORE_COLLECTION_NAME')
+                or os.getenv('VECTOR_STORE_COLLECTION', 'documents')
+            )
             
             # Initialize client
             logger.info(f"Connecting to Qdrant at {self.url} with collection {self.collection_name}")
@@ -45,25 +49,31 @@ class QdrantVectorStore(BaseVectorStore):
                 self.client.get_collection(self.collection_name)
                 logger.info(f"Using existing Qdrant collection: {self.collection_name}")
             except Exception:
-                # Collection doesn't exist, create it
+                # Collection doesn't exist (or lookup failed), try to create it
                 vector_size = self.config.get('dimension', self.config.get('vector_size', 384))  # Check both keys
                 distance = self.config.get('distance', 'Cosine')
-                
+
                 distance_map = {
                     'Cosine': Distance.COSINE,
                     'Euclidean': Distance.EUCLID,
                     'Dot': Distance.DOT
                 }
-                
-                self.client.create_collection(
-                    collection_name=self.collection_name,
-                    vectors_config=VectorParams(
-                        size=vector_size,
-                        distance=distance_map.get(distance, Distance.COSINE)
+
+                try:
+                    self.client.create_collection(
+                        collection_name=self.collection_name,
+                        vectors_config=VectorParams(
+                            size=vector_size,
+                            distance=distance_map.get(distance, Distance.COSINE)
+                        )
                     )
-                )
-                logger.info(f"Created new Qdrant collection: {self.collection_name}")
-                
+                    logger.info(f"Created new Qdrant collection: {self.collection_name}")
+                except Exception as create_exc:
+                    if "already exists" in str(create_exc):
+                        logger.info(f"Qdrant collection {self.collection_name} already exists, continuing")
+                    else:
+                        raise
+
         except ImportError:
             raise ImportError("Please install qdrant-client: pip install qdrant-client")
     
